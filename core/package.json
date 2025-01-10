@@ -1,0 +1,19 @@
+{
+  "name": "@nest-extended/cli",
+  "version": "0.0.1",
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "typings": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "sourceRoot": "core/src",
+    "projectType": "library",
+    "name": "core"
+  }
+}
