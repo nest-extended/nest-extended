@@ -1,7 +1,6 @@
 /**
  * Warning: Modify this properly!
  */
-
 export default {
   deleteKey: 'deleted',
   defaultPagination: true,
