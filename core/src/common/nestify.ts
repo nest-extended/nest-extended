@@ -1,6 +1,6 @@
-import { Model, Document, Query } from 'mongoose';
 
 export function nestify(
+  // @ts-ignore
   q,
   filters: Record<string, any>,
   options: {

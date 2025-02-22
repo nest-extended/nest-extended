@@ -9,6 +9,7 @@
     ],
     "sharedGlobals": []
   },
+  "skipNxCache": true,
   "plugins": [
     {
       "plugin": "@nx/js/typescript",

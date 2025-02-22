@@ -12,6 +12,7 @@ export type NestServiceOptions = {
 
 export class NestService<M, D> {
   private model: Model<M>;
+  // @ts-ignore
   private options: NestServiceOptions;
   constructor(model: Model<M>, options?: NestServiceOptions) {
     this.model = model;
@@ -36,6 +37,7 @@ export class NestService<M, D> {
       $ne: true,
     };
 
+    // @ts-ignore
     const filters = assignFilters({}, query, FILTERS, {});
     const searchQuery = rawQuery(query);
     const isPaginationDisabled =
@@ -109,12 +111,14 @@ export class NestService<M, D> {
       $ne: true,
     };
 
+    // @ts-ignore
     const filters = assignFilters({}, query, FILTERS, {});
     const searchQuery: FilterQuery<D> = id
       ? { _id: id, ...rawQuery(query) }
       : rawQuery(query);
 
     const isSingleUpdate = Boolean(id);
+    // @ts-ignore
     const q = this._getOrFind(isSingleUpdate, searchQuery, data);
 
     if (isSingleUpdate) {
@@ -152,6 +156,7 @@ export class NestService<M, D> {
       $ne: true,
     };
 
+    // @ts-ignore
     const filters = assignFilters({}, query, FILTERS, {});
     const searchQuery: FilterQuery<Record<any, any>> = {
       ...rawQuery(query),
@@ -193,6 +198,7 @@ export class NestService<M, D> {
     const searchQuery: FilterQuery<Record<any, any>> = id
       ? { _id: id, ...rawQuery(query) }
       : rawQuery(query);
+    // @ts-ignore
     const data = await this._get(id, query);
 
     // softDelete

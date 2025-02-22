@@ -10,9 +10,6 @@
       "path": "./core"
     },
     {
-      "path": "./apps/example-e2e"
-    },
-    {
       "path": "./apps/example"
     }
   ]
