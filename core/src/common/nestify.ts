@@ -1,4 +1,4 @@
-import { Model, Document, Query, PopulateOptions, SortOrder } from 'mongoose';
+import { Document, Query } from 'mongoose';
 
 export function nestify<
   T extends Document,
