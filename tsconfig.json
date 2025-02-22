@@ -7,13 +7,10 @@
       "path": "./cli"
     },
     {
-      "path": "./apps/example-e2e"
+      "path": "./core"
     },
     {
       "path": "./apps/example"
-    },
-    {
-      "path": "./core"
     }
   ]
 }
