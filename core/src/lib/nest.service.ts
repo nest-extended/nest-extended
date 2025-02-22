@@ -2,13 +2,9 @@ import { FilterQuery, Model, UpdateQuery } from 'mongoose';
 import { PaginatedResponse } from '../types/PaginatedResponse';
 import { BadRequestException } from '@nestjs/common';
 import { assignFilters, FILTERS, rawQuery } from '../common/query.utils';
-import { nestify } from '../common/nestify';
 import options from '../common/options';
-
-export type NestServiceOptions = {
-  multi: boolean;
-  softDelete: boolean;
-};
+import { nestify } from 'src/common/nestify';
+import { NestServiceOptions } from 'src/types/ServiceOptions';
 
 export class NestService<M, D> {
   private model: Model<M>;
@@ -118,7 +114,8 @@ export class NestService<M, D> {
       : rawQuery(query);
 
     const isSingleUpdate = Boolean(id);
-    // @ts-ignore
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
     const q = this._getOrFind(isSingleUpdate, searchQuery, data);
 
     if (isSingleUpdate) {
@@ -166,7 +163,6 @@ export class NestService<M, D> {
     const q = this.model.findOne(searchQuery);
     const isSingleOperation = true;
     nestify(q, filters, options, isSingleOperation);
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-expect-error
     return (await q.exec()) || [];
   }
@@ -198,24 +194,10 @@ export class NestService<M, D> {
     const searchQuery: FilterQuery<Record<any, any>> = id
       ? { _id: id, ...rawQuery(query) }
       : rawQuery(query);
-    // @ts-ignore
+
+    // @ts-expect-error
     const data = await this._get(id, query);
 
-    // softDelete
-    // if (removeOptions.handleSoftDelete) {
-    //   await this._patch(
-    //     id,
-    //     {
-    //       deleted: true,
-    //       deletedBy: user._id,
-    //       deletedAt: new Date(),
-    //     },
-    //     searchQuery,
-    //   );
-    //   return data;
-    // }
-
-    // hard delete
     id
       ? await this.model.deleteOne(searchQuery).exec()
       : await this.model.deleteMany(searchQuery).exec();
