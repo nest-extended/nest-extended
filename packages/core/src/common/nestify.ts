@@ -7,8 +7,8 @@ export function nestify<
   q: Q,
   filters: NestifyFilters,
   options: NestifyOptions,
-  isSingleOperation: boolean = false,
-  isPaginationDisabled: boolean = false
+  isSingleOperation?: boolean,
+  isPaginationDisabled?: boolean
 ): void {
 
   if (Array.isArray(filters.$select)) {

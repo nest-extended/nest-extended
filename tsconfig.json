@@ -8,6 +8,15 @@
     },
     {
       "path": "./packages/core"
+    },
+    {
+      "path": "./packages/common"
+    },
+    {
+      "path": "./packages/mongoose"
+    },
+    {
+      "path": "./packages/decorators"
     }
   ]
 }

@@ -8,9 +8,9 @@ import {
     Query,
     Logger,
 } from '@nestjs/common';
-import { ModifyBody, setCreatedBy } from '../common/decorators/ModifyBody.decorator.ts';
-import { Public } from '../common/decorators/public.decorator.ts';
-import { User } from '../common/decorators/user.decorator.ts';
+import { ModifyBody, setCreatedBy } from '@nest-extended/decorators';
+import { Public } from '@nest-extended/decorators';
+import { User } from '@nest-extended/decorators';
 import type { ServiceOptions } from '../types/ServiceOptions.d.ts';
 
 export class GlobalController<T> {
