@@ -5,11 +5,10 @@
     "production": [
       "default",
       "!{projectRoot}/.eslintrc.json",
-      "!{projectRoot}/eslint.config.cjs"
+      "!{projectRoot}/eslint.config.mjs"
     ],
     "sharedGlobals": []
   },
-  "skipNxCache": true,
   "plugins": [
     {
       "plugin": "@nx/js/typescript",
@@ -19,7 +18,9 @@
         },
         "build": {
           "targetName": "build",
-          "configName": "tsconfig.lib.json"
+          "configName": "tsconfig.lib.json",
+          "buildDepsName": "build-deps",
+          "watchDepsName": "watch-deps"
         }
       }
     },
@@ -28,14 +29,14 @@
       "options": {
         "targetName": "lint"
       }
-    },
-    {
-      "plugin": "@nx/webpack/plugin",
-      "options": {
-        "buildTargetName": "build",
-        "serveTargetName": "serve",
-        "previewTargetName": "preview"
-      }
     }
-  ]
+  ],
+  "release": {
+    "version": {
+      "preVersionCommand": "yarn nx run-many -t build"
+    }
+  },
+  "sync": {
+    "applyChanges": false
+  }
 }

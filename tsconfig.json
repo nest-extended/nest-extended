@@ -4,13 +4,10 @@
   "files": [],
   "references": [
     {
-      "path": "./cli"
+      "path": "./packages/cli"
     },
     {
-      "path": "./core"
-    },
-    {
-      "path": "./apps/example"
+      "path": "./packages/core"
     }
   ]
 }
