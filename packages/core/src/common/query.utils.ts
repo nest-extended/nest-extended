@@ -34,6 +34,7 @@ function getLimit(limit: number | undefined, paginate: { default: any; max: any;
 export const rawQuery = (query: Record<string, any>) => {
   const rawQ = {};
   for (const key in query) {
+    // @ts-ignore
     if (query.hasOwnProperty(key)) {
       if (key.startsWith('$')) {
         const filterKey = key.slice(1);
@@ -117,14 +118,17 @@ export const filterQuery = (query: any, options = {}) => {
 
 export const assignFilters = (object: {
   [x: string]: any;
+  // @ts-ignore
 }, query: Record<string, any>, filters: any[], options: {}) => {
   if (Array.isArray(filters)) {
+    // @ts-ignore
     _.forEach(filters, (key) => {
       if (query[key] !== undefined) {
         object[key] = query[key];
       }
     });
   } else {
+    // @ts-ignore
     _.forEach(filters, (converter, key) => {
       // @ts-ignore
       const converted = converter(query[key], options);

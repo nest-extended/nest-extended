@@ -1,1 +1,1 @@
-export * from './lib/nest.service.ts';
+export * from './lib/nest.service';

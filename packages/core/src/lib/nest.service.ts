@@ -1,9 +1,9 @@
 import { FilterQuery, Model, UpdateQuery } from 'mongoose';
-import { PaginatedResponse } from '../types/PaginatedResponse.ts';
+import { PaginatedResponse } from '../types/PaginatedResponse';
 import { BadRequestException } from '@nestjs/common';
-import { assignFilters, FILTERS, rawQuery } from '../common/query.utils.ts';
-import options from '../common/options.ts';
-import { nestify } from '../common/nestify.ts';
+import { assignFilters, FILTERS, rawQuery } from '../common/query.utils';
+import options from '../common/options';
+import { nestify } from '../common/nestify';
 import type { NestServiceOptions } from '../types/ServiceOptions.d.ts';
 
 export class NestService<M, D> {

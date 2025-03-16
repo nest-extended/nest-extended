@@ -1,3 +1,3 @@
-export * from './ModifyBody.decorator.ts';
-export * from './public.decorator.ts';
-export * from './user.decorator.ts';
+export * from './ModifyBody.decorator';
+export * from './public.decorator';
+export * from './user.decorator';
