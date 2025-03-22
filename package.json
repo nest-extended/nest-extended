@@ -2,23 +2,31 @@
   "name": "@nest-extended/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
   "private": true,
   "dependencies": {
     "@nestjs/common": "^11.0.11",
     "@nestjs/core": "^11.0.11",
     "@nestjs/platform-express": "^11.0.11",
     "@types/commander": "^2.12.5",
+    "axios": "^1.6.0",
     "commander": "^13.1.0",
     "inquirer": "^12.5.0",
     "lodash": "^4.17.21",
-    "mongoose": "^8.12.1"
+    "mongoose": "^8.12.1",
+    "reflect-metadata": "^0.1.13",
+    "rxjs": "^7.8.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.8.0",
+    "@nestjs/schematics": "^10.0.1",
+    "@nestjs/testing": "^10.0.2",
     "@nx/eslint": "20.6.0",
     "@nx/eslint-plugin": "20.6.0",
-    "@nx/js": "20.6.0",
+    "@nx/js": "20.6.2",
+    "@nx/nest": "^20.6.2",
+    "@nx/node": "20.6.2",
+    "@nx/web": "20.6.2",
+    "@nx/webpack": "20.6.2",
     "@swc-node/register": "~1.9.1",
     "@swc/core": "~1.5.7",
     "@swc/helpers": "~0.5.11",
@@ -27,12 +35,13 @@
     "eslint": "^9.8.0",
     "eslint-config-prettier": "^9.0.0",
     "jsonc-eslint-parser": "^2.1.0",
-    "nx": "20.6.0",
+    "nx": "20.6.2",
     "prettier": "^2.6.2",
     "tslib": "^2.3.0",
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.19.0",
-    "verdaccio": "^6.0.5"
+    "verdaccio": "^6.0.5",
+    "webpack-cli": "^5.1.4"
   },
   "workspaces": [
     "packages/*"
