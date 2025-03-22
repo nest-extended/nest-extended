@@ -17,6 +17,12 @@
     },
     {
       "path": "./packages/decorators"
+    },
+    {
+      "path": "./apps/examples-e2e"
+    },
+    {
+      "path": "./apps/examples"
     }
   ]
 }
