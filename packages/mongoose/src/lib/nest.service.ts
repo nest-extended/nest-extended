@@ -1,10 +1,10 @@
-import { FilterQuery, Model, UpdateQuery } from 'mongoose';
-import { PaginatedResponse } from '../types/PaginatedResponse';
 import { BadRequestException } from '@nestjs/common';
-import { assignFilters, FILTERS, rawQuery } from '../common/query.utils';
-import options from '../common/options';
-import { nestify } from '../common/nestify';
-import type { NestServiceOptions } from '../types/ServiceOptions.d.ts';
+import { FilterQuery, Model, UpdateQuery } from 'mongoose';
+import { PaginatedResponse } from '@nest-extended/core/src/types/PaginatedResponse';
+import { assignFilters, FILTERS, rawQuery } from '@nest-extended/core/src/common/query.utils';
+import { options } from '@nest-extended/core/src/common/options';
+import { nestify } from '@nest-extended/core/src/common/nestify';
+import type { NestServiceOptions } from '@nest-extended/core/src/types/ServiceOptions';
 
 export class NestService<M, D> {
   private model: Model<M>;
