@@ -8,10 +8,8 @@ import {
     Query,
     Logger,
 } from '@nestjs/common';
-import { ModifyBody, setCreatedBy } from '@nest-extended/decorators';
-import { Public } from '@nest-extended/decorators';
-import { User } from '@nest-extended/decorators';
-import type { ServiceOptions } from '../types/ServiceOptions.d.ts';
+import { ModifyBody, setCreatedBy, Public, User } from '@nest-extended/decorators';
+import type { ServiceOptions } from '@nest-extended/core/src/types/ServiceOptions';
 
 export class GlobalController<T> {
     protected readonly logger = new Logger(GlobalController.name);

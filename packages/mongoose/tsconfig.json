@@ -7,6 +7,9 @@
       "path": "../core"
     },
     {
+      "path": "../decorators"
+    },
+    {
       "path": "./tsconfig.lib.json"
     }
   ],
