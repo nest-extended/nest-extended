@@ -56,6 +56,9 @@
           "config": ".verdaccio/config.yml",
           "storage": "tmp/local-registry/storage"
         }
+      },
+      "nx-release-publish": {
+        "command": "echo '@nest-extended/source published'"
       }
     }
   }

@@ -43,4 +43,4 @@ jobs:
           EOF
 
       - name: Publish Mongoose
-        run: yarn nx run @nest-extended/mongoose:nx-release-publish
+        run: yarn nx run-many -t nx-release-publish
