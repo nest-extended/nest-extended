@@ -6,8 +6,8 @@ on:
     branches: [main]
 
 jobs:
-  publish_mongoose:
-    name: Publish Mongoose
+  publish:
+    name: Publish
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -42,5 +42,5 @@ jobs:
           //registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}
           EOF
 
-      - name: Publish Mongoose
+      - name: Publish
         run: yarn nx run-many -t nx-release-publish
