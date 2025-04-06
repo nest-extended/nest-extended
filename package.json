@@ -2,7 +2,7 @@
   "name": "@nest-extended/source",
   "version": "0.0.1-beta",
   "license": "MIT",
-  "private": false,
+  "private": true,
   "publishConfig": {
     "access": "public"
   },
