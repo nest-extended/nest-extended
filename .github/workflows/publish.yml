@@ -74,4 +74,4 @@ jobs:
             ${{ runner.os }}-yarn-
 
       - name: Publish Mongoose
-        run: nx run @nest-extended/mongoose:nx-release-publish
+        run: yarn nx run @nest-extended/mongoose:nx-release-publish
