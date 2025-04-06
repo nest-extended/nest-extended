@@ -3,9 +3,6 @@
   "version": "0.0.1-beta",
   "license": "MIT",
   "private": true,
-  "publishConfig": {
-    "access": "public"
-  },
   "dependencies": {
     "@nestjs/common": "^11.0.11",
     "@nestjs/core": "^11.0.11",
