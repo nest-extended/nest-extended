@@ -1,10 +1,8 @@
-import { FilterQuery, Model, UpdateQuery } from 'mongoose';
-import { PaginatedResponse } from '../types/PaginatedResponse';
 import { BadRequestException } from '@nestjs/common';
-import { assignFilters, FILTERS, rawQuery } from '../common/query.utils';
-import options from '../common/options';
-import { nestify } from '../common/nestify';
-import type { NestServiceOptions } from '../types/ServiceOptions.d.ts';
+import { FilterQuery, Model, UpdateQuery } from 'mongoose';
+import { options, nestify, assignFilters, FILTERS, rawQuery } from '@nest-extended/core';
+import type { NestServiceOptions } from '@nest-extended/core/src/types/ServiceOptions';
+import type { PaginatedResponse } from '@nest-extended/core/src/types/PaginatedResponse';
 
 export class NestService<M, D> {
   private model: Model<M>;
@@ -48,6 +46,7 @@ export class NestService<M, D> {
 
     const [data, total] = await Promise.all([
       q.exec(),
+      // @ts-ignore
       this.model.countDocuments({
         [options.deleteKey || 'deleted']: { $ne: true },
         ...searchQuery,

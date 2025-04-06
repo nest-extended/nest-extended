@@ -1,7 +1,7 @@
 import { Command } from 'commander';
-import {initializer} from "./initializer";
+import { initializer } from "./initializer";
 // import { generateCode } from './code-generator';
-import NestService from "@nest-extended/core";
+import NestService from "@nest-extended/mongoose";
 
 const program = new Command();
 

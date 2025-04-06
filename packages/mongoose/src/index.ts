@@ -1,1 +1,2 @@
-export * from './lib/mongoose.js';
+export * from './lib/mongoose';
+export * from './lib/nest.service';
