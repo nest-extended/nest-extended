@@ -42,13 +42,36 @@ jobs:
           @nest-extended:registry=https://registry.npmjs.org/
           //registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}
           EOF
-          
-          cat .npmrc
 
   publish_mongoose:
     name: Publish Mongoose
     runs-on: ubuntu-latest
     needs: [ install ]
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Node Setup
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-node-modules
+        with:
+          # npm cache files are stored in `~/.npm` on Linux/macOS
+          path: |
+            ${{ steps.yarn-cache-dir-path.outputs.dir }}
+            ~/.npm
+            ~/.yarn
+            **/node_modules
+            ${{ github.workspace }}/.nx
+            ${{ github.workspace }}/dist
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+
       - name: Publish Mongoose
         run: nx run @nest-extended/mongoose:nx-release-publish
