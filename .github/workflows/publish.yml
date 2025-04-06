@@ -35,8 +35,6 @@ jobs:
       - name: Install dependencies
         run: |
           yarn install
-          cd ./src/packages/SDRTNPlayer
-          yarn install
 
       - name: Setup Npm
         run: |
