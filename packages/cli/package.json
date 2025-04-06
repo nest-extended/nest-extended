@@ -1,10 +1,16 @@
 {
   "name": "@nest-extended/cli",
-  "version": "0.0.1",
-  "type": "module",
+  "version": "0.0.1-beta-3",
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "nest-cli": "bin/cli.js"
+  },
   "exports": {
     "./package.json": "./package.json",
     ".": {
@@ -14,6 +20,7 @@
     }
   },
   "files": [
+    "bin",
     "dist",
     "!**/*.tsbuildinfo"
   ],

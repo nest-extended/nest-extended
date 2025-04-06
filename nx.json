@@ -20,7 +20,8 @@
           "targetName": "build",
           "configName": "tsconfig.lib.json",
           "buildDepsName": "build-deps",
-          "watchDepsName": "watch-deps"
+          "watchDepsName": "watch-deps",
+          "outputs": ["{workspaceRoot}/dist/{projectRoot}"]
         }
       }
     },

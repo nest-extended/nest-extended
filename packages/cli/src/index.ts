@@ -1,7 +1,10 @@
+#!/usr/bin/env node
+
 import { Command } from 'commander';
 import { initializer } from "./initializer";
 // import { generateCode } from './code-generator';
-import NestService from "@nest-extended/mongoose";
+// import NestService from "@nest-extended/mongoose";
+import {generateService} from "./service/generate-service";
 
 const program = new Command();
 
@@ -14,15 +17,16 @@ program
     .command('init')
     .description('Create or update a nest-extended.config.json file')
     .action(() => {
-        console.log(NestService);
+        // console.log(NestService);
         initializer();
     });
 
 program
     .command('g <type> <name>')
     .description('Generate a NestJS component (e.g., module, controller, service)')
-    .action((type: string, name: string) => {
+    .action(async (type: string) => {
         // generateCode(type, name);
+        if (type === 'service') await generateService();
     });
 
 program.parse(process.argv);

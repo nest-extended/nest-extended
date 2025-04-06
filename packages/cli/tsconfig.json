@@ -7,9 +7,6 @@
       "path": "../core"
     },
     {
-      "path": "../mongoose"
-    },
-    {
       "path": "./tsconfig.lib.json"
     }
   ],

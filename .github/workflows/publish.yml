@@ -1,0 +1,53 @@
+name: Publish
+on:
+  push:
+    tags:
+      - v*
+    branches: [main]
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Node Setup
+        uses: actions/setup-node@v2
+        with:
+          node-version: 20
+
+      - name: Cache node modules
+        uses: actions/cache@v2
+        env:
+          cache-name: cache-node-modules
+        with:
+          # npm cache files are stored in `~/.npm` on Linux/macOS
+          path: |
+            ~/.npm
+            ~/.yarn
+            **/node_modules
+          key: ${{ runner.os }}-node-${{ env.cache-name }}-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        run: |
+          yarn install
+          cd ./src/packages/SDRTNPlayer
+          yarn install
+
+      - name: Setup Npm
+        run: |
+          cat <<EOF >.npmrc
+          @nest-extended:registry=https://registry.npmjs.org/
+          //registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}
+          EOF
+          
+          cat .npmrc
+
+  publish_mongoose:
+    needs: [ install ]
+    steps:
+      - name: Publish Mongoose
+        run: nx run @nest-extended/mongoose:nx-release-publish
