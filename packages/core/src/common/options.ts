@@ -1,7 +1,7 @@
 /**
  * Warning: Modify this properly!
  */
-export default {
+export const options = {
   deleteKey: 'deleted',
   defaultPagination: true,
   defaultLimit: 20,
