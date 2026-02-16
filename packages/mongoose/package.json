@@ -1,26 +1,10 @@
 {
   "name": "@nest-extended/mongoose",
-  "version": "0.0.1-beta-1",
-  "type": "module",
-  "private": false,
-  "publishConfig": {
-    "access": "public"
-  },
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    "./package.json": "./package.json",
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist",
-    "!**/*.tsbuildinfo"
-  ],
+  "version": "0.0.1",
+  "private": true,
+  "type": "commonjs",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
   "dependencies": {
     "tslib": "^2.3.0"
   }

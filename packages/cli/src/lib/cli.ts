@@ -1,5 +1,6 @@
-import {core} from "@nest-extended/core";
+import { mongoose } from '@nest-extended/mongoose';
+
 export function cli(): string {
-  core();
+  console.log(mongoose());
   return 'cli';
 }

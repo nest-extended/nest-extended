@@ -1,24 +1,25 @@
 {
+  "compileOnSave": false,
   "compilerOptions": {
-    "composite": true,
-    "declarationMap": true,
-    "emitDeclarationOnly": true,
-    "importHelpers": true,
-    "isolatedModules": true,
-    "lib": [
-      "es2022"
-    ],
-    "module": "commonjs",
+    "rootDir": ".",
+    "sourceMap": true,
+    "declaration": false,
     "moduleResolution": "node",
+    "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "noEmitOnError": true,
-    "noFallthroughCasesInSwitch": true,
-    "noImplicitOverride": true,
-    "noImplicitReturns": true,
-    "noUnusedLocals": true,
+    "importHelpers": true,
+    "target": "es2015",
+    "module": "esnext",
+    "lib": ["es2020", "dom"],
     "skipLibCheck": true,
-    "strict": true,
-    "target": "es2022",
-    "esModuleInterop": true
-  }
+    "skipDefaultLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@nest-extended/cli": ["packages/cli/src/index.ts"],
+      "@nest-extended/mongoose": ["packages/mongoose/src/index.ts"]
+    },
+    "jsx": "react",
+    "allowSyntheticDefaultImports": true
+  },
+  "exclude": ["node_modules", "tmp"]
 }
