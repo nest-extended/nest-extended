@@ -1,4 +1,5 @@
-const getControllerSpec = (Name, name) => `import { Test, TestingModule } from '@nestjs/testing';
+
+export const getControllerSpec = (Name: string, name: string): string => `import { Test, TestingModule } from '@nestjs/testing';
 import { ${Name}Controller } from './${name}.controller';
 
 describe('${Name}Controller', () => {
@@ -17,5 +18,3 @@ describe('${Name}Controller', () => {
   });
 });
 `;
-
-module.exports = getControllerSpec;

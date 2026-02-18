@@ -16,6 +16,7 @@
     "baseUrl": ".",
     "paths": {
       "@nest-extended/cli": ["packages/cli/src/index.ts"],
+      "@nest-extended/core": ["packages/core/src/index.ts"],
       "@nest-extended/mongoose": ["packages/mongoose/src/index.ts"]
     },
     "jsx": "react",

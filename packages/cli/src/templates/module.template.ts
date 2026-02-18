@@ -1,4 +1,5 @@
-const getModule = (Name, name) => `import { Module } from '@nestjs/common';
+
+export const getModule = (Name: string, name: string): string => `import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ${Name}Controller } from './${name}.controller';
 import { ${Name}Service } from './${name}.service';
@@ -10,11 +11,9 @@ import { ${Name}, ${Name}Schema } from 'src/schemas/${name}.schema';
   ],
   controllers: [${Name}Controller],
   providers: [
-  ${Name}Service,
+    ${Name}Service,
   ],
   exports: [${Name}Service],
 })
 export class ${Name}Module {}
 `;
-
-module.exports = getModule;

@@ -1,4 +1,5 @@
-const getSchema = (Name, UserEntity = 'Users') => `import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+
+export const getSchema = (Name: string, UserEntity: string = 'Users'): string => `import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import { ${UserEntity} } from './users.schema';
 import EnsureObjectId from '@nest-extended/core/common/ensureObjectId';
@@ -14,21 +15,21 @@ export class ${Name} {
   
   @Prop({
     type: Types.ObjectId,
-    ref: Users.name,
+    ref: ${UserEntity}.name,
     default: null
   })
   createdBy: Types.ObjectId;
 
   @Prop({
     type: Types.ObjectId,
-    ref: Users.name,
+    ref: ${UserEntity}.name,
     default: null
   })
   updatedBy?: Types.ObjectId;
 
   @Prop({
     type: Types.ObjectId,
-    ref: Users.name,
+    ref: ${UserEntity}.name,
     default: null
   })
   deletedBy?: Types.ObjectId;
@@ -49,5 +50,3 @@ export class ${Name} {
 
 export const ${Name}Schema = SchemaFactory.createForClass(${Name});
 `;
-
-module.exports = getSchema;

@@ -1,4 +1,5 @@
-const getServiceSpec = (Name, name) => `import { Test, TestingModule } from '@nestjs/testing';
+
+export const getServiceSpec = (Name: string, name: string): string => `import { Test, TestingModule } from '@nestjs/testing';
 import { ${Name}Service } from './${name}.service';
 
 describe('${Name}Service', () => {
@@ -17,5 +18,3 @@ describe('${Name}Service', () => {
   });
 });
 `;
-
-module.exports = getServiceSpec;

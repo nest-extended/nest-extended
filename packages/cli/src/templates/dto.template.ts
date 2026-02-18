@@ -1,4 +1,5 @@
-const getDto = (Name) => `import { z } from 'zod';
+
+export const getDto = (Name: string): string => `import { z } from 'zod';
 import { Types } from 'mongoose';
 
 export const Create${Name}Validation = z.object({
@@ -52,5 +53,3 @@ export type Create${Name}DTO = z.infer<typeof Create${Name}Validation>;
 export type Patch${Name}DTO = z.infer<typeof Patch${Name}Validation>;
 export type Remove${Name}DTO = z.infer<typeof Remove${Name}Validation>;
 `;
-
-module.exports = getDto;
