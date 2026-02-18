@@ -54,14 +54,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          registry-url: 'https://registry.npmjs.org'
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist
-      - name: Setup Npm
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
       - name: Publish Core
         run: cd dist/packages/core && npm publish --access public
         env:
@@ -78,14 +76,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          registry-url: 'https://registry.npmjs.org'
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist
-      - name: Setup Npm
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
       - name: Publish Mongoose
         run: cd dist/packages/mongoose && npm publish --access public
         env:
@@ -102,14 +98,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          registry-url: 'https://registry.npmjs.org'
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist
-      - name: Setup Npm
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > .npmrc
       - name: Publish CLI
         run: cd dist/packages/cli && npm publish --access public
         env:
