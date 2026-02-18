@@ -1,6 +1,6 @@
 {
   "name": "@nest-extended/source",
-  "version": "0.0.1-beta",
+  "version": "0.0.1-beta-7",
   "license": "MIT",
   "private": true,
   "dependencies": {
@@ -19,6 +19,10 @@
     "nestjs-cls": "^6.2.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.0"
+  },
+  "scripts": {
+    "test": "nx test",
+    "release": "node scripts/release.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.8.0",
