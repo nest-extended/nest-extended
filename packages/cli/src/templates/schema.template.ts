@@ -2,7 +2,7 @@
 export const getSchema = (Name: string, UserEntity: string = 'Users'): string => `import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 import { ${UserEntity} } from './users.schema';
-import EnsureObjectId from '@nest-extended/core/common/ensureObjectId';
+import { EnsureObjectId } from '@nest-extended/mongoose';
 
 export type ${Name}Document = HydratedDocument<${Name}>;
 
