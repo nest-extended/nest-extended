@@ -1,6 +1,11 @@
-export * from './lib/core';
-export * from './common/nestify';
-export * from './common/options';
-export * from './common/query.utils';
+export * from './lib/nest.controller';
+export * from './lib/nest-extended.module';
+export { default as options } from './common/options';
+export * from './common/decorators/ModifyBody.decorator';
+export * from './common/decorators/Public.decorator';
+export * from './common/decorators/User.decorator';
+export * from './common/cls.helper';
+export * from './types/nest-extended.config';
 export * from './types/PaginatedResponse';
 export * from './types/ServiceOptions';
+

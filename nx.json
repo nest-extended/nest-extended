@@ -1,5 +1,8 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "tui": {
+    "enabled": true
+  },
   "namedInputs": {
     "default": ["{projectRoot}/**/*", "sharedGlobals"],
     "production": [
@@ -42,12 +45,16 @@
       }
     }
   ],
-  "release": {
-    "version": {
-      "preVersionCommand": "yarn nx run-many -t build"
-    }
+  "workspaceLayout": {
+    "appsDir": "apps",
+    "libsDir": "packages"
   },
-  "sync": {
-    "applyChanges": true
+  "generators": {},
+  "targetDefaults": {
+    "@nx/js:tsc": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["production", "^production"]
+    }
   }
 }
