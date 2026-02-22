@@ -8,10 +8,8 @@ import {
     Query,
     Logger,
 } from '@nestjs/common';
-import { Public } from '../common/decorators/Public.decorator';
-import { User } from '../common/decorators/User.decorator';
+import { Public, User, ModifyBody, setCreatedBy } from '@nest-extended/decorators';
 import { ServiceOptions } from '../types/ServiceOptions';
-import { ModifyBody, setCreatedBy } from '../common/decorators/ModifyBody.decorator';
 
 export class NestController<T> {
     protected readonly logger = new Logger(NestController.name);

@@ -2,8 +2,7 @@ name: Publish
 on:
   push:
     tags:
-      - v*
-    branches: [main]
+      - 'v*'
 
 jobs:
   build:
@@ -12,6 +11,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Node Setup
         uses: actions/setup-node@v4
@@ -20,19 +21,25 @@ jobs:
 
       - name: Cache node modules
         uses: actions/cache@v4
-        env:
-          cache-name: cache-node-modules
         with:
           path: |
-            ~/.npm
-            ~/.yarn
-            **/node_modules
-          key: ${{ runner.os }}-node-${{ env.cache-name }}-${{ hashFiles('**/yarn.lock') }}
+            node_modules
+            ~/.cache/yarn
+          key: ${{ runner.os }}-yarn-${{ hashFiles('yarn.lock') }}
           restore-keys: |
-            ${{ runner.os }}-node-
+            ${{ runner.os }}-yarn-
+
+      - name: Cache Nx
+        uses: actions/cache@v4
+        with:
+          path: .nx/cache
+          key: ${{ runner.os }}-nx-${{ hashFiles('yarn.lock') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-nx-${{ hashFiles('yarn.lock') }}-
+            ${{ runner.os }}-nx-
 
       - name: Install dependencies
-        run: yarn install
+        run: yarn install --frozen-lockfile
 
       - name: Build All
         run: yarn nx run-many -t build
@@ -106,5 +113,27 @@ jobs:
           path: dist
       - name: Publish CLI
         run: cd dist/packages/cli && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  publish-decorators:
+    name: Publish Decorators
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node Setup
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Publish Decorators
+        run: cd dist/packages/decorators && npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
