@@ -14,6 +14,7 @@ const packages = [
     'packages/core/package.json',
     'packages/mongoose/package.json',
     'packages/cli/package.json',
+    'packages/decorators/package.json',
 ];
 
 console.log(`Updating versions to ${version}...`);
@@ -29,6 +30,9 @@ packages.forEach((pkgPath) => {
     }
     if (pkg.dependencies && pkg.dependencies['@nest-extended/mongoose']) {
         pkg.dependencies['@nest-extended/mongoose'] = version;
+    }
+    if (pkg.dependencies && pkg.dependencies['@nest-extended/decorators']) {
+        pkg.dependencies['@nest-extended/decorators'] = version;
     }
 
 

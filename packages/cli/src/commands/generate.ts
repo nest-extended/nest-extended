@@ -61,6 +61,18 @@ generateCommand
         );
 
         await updateAppModule(Name, name);
+
+        console.log(chalk.blue('Running lint...'));
+        const projectDir = process.cwd();
+        const pkgManager = fs.existsSync(path.join(projectDir, 'yarn.lock')) ? 'yarn' : 'npm';
+        await new Promise<void>((resolve) => {
+            const lintChild = spawn(pkgManager, ['run', 'lint'], {
+                stdio: 'inherit',
+                cwd: projectDir,
+                shell: true,
+            });
+            lintChild.on('close', () => resolve());
+        });
     });
 
 generateCommand
@@ -88,7 +100,7 @@ generateCommand
 
         // 1. Run nest new
         await new Promise<void>((resolve, reject) => {
-            const child = spawn('npx', ['@nestjs/cli', 'new', appName, '--package-manager', 'npm'], {
+            const child = spawn('npx', ['@nestjs/cli', 'new', appName], {
                 stdio: 'inherit',
                 shell: true,
             });
@@ -99,23 +111,28 @@ generateCommand
         });
 
         const appDir = path.join(process.cwd(), appName);
+        const pkgManager = fs.existsSync(path.join(appDir, 'yarn.lock')) ? 'yarn' : 'npm';
+        const pkg = require('../../package.json');
+        const nestExtendedVersion = pkg.version;
+
         console.log(chalk.blue('Installing additional dependencies...'));
 
         // 2. Install dependencies
         await new Promise<void>((resolve, reject) => {
+            const installArgs = pkgManager === 'yarn' ? ['add'] : ['install'];
             const child = spawn(
-                'npm',
+                pkgManager,
                 [
-                    'install',
+                    ...installArgs,
                     '@nestjs/mongoose',
                     'mongoose',
                     '@nestjs/config',
                     'nestjs-cls',
                     '@nestjs/jwt',
                     'bcrypt',
-                    '@nest-extended/core',
-                    '@nest-extended/mongoose',
-                    '@nest-extended/decorators',
+                    `@nest-extended/core@${nestExtendedVersion}`,
+                    `@nest-extended/mongoose@${nestExtendedVersion}`,
+                    `@nest-extended/decorators@${nestExtendedVersion}`,
                     'zod'
                 ],
                 {
@@ -126,20 +143,21 @@ generateCommand
             );
             child.on('close', (code) => {
                 if (code === 0) resolve();
-                else reject(new Error(`npm install failed with code ${code}`));
+                else reject(new Error(`${pkgManager} install failed with code ${code}`));
             });
         });
 
         // 3. Install Dev dependencies
         await new Promise<void>((resolve, reject) => {
-            const child = spawn('npm', ['install', '-D', '@types/bcrypt'], {
+            const devArgs = pkgManager === 'yarn' ? ['add', '-D'] : ['install', '-D'];
+            const child = spawn(pkgManager, [...devArgs, '@types/bcrypt'], {
                 stdio: 'inherit',
                 cwd: appDir,
                 shell: true,
             });
             child.on('close', (code) => {
                 if (code === 0) resolve();
-                else reject(new Error(`npm install -D failed with code ${code}`));
+                else reject(new Error(`${pkgManager} dev install failed with code ${code}`));
             });
         });
 
@@ -210,6 +228,16 @@ import { UsersModule } from './services/users/users.module';
         fs.writeFileSync(path.join(authDir, 'auth.guard.ts'), getAuthGuard());
         fs.writeFileSync(path.join(authDir, 'constants/jwt-constants.ts'), getJwtConstants());
         fs.writeFileSync(path.join(authDir, 'decorators/public.decorator.ts'), getPublicDecorator());
+
+        console.log(chalk.blue('Running lint...'));
+        await new Promise<void>((resolve) => {
+            const lintChild = spawn(pkgManager, ['run', 'lint'], {
+                stdio: 'inherit',
+                cwd: appDir,
+                shell: true,
+            });
+            lintChild.on('close', () => resolve());
+        });
 
         console.log(chalk.green('App generated successfully!'));
     });
