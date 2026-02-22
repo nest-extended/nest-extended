@@ -5,9 +5,10 @@
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "bin": {
-    "nestx-cli": "./src/index.js"
+    "nest-cli": "./src/index.js"
   },
   "dependencies": {
+    "@nestjs/cli": "^11.0.16",
     "chalk": "^4.1.2",
     "commander": "^11.0.0",
     "fs-extra": "^11.1.1",

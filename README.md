@@ -24,7 +24,17 @@ yarn add -D @nest-extended/cli
 Use the CLI to generate a new resource:
 
 ```bash
-nestx-cli g service my-feature
+nest-cli g service my-feature
 ```
 
 This will generate a full set of files (Service, Controller, Module, Schema, DTO) and automatically register the module in your `app.module.ts`.
+
+### Generate Application
+
+Use the CLI to generate an entire pre-configured NestJS application:
+
+```bash
+nestx-cli g app my-app
+```
+
+This will scaffold a new NestJS generic application complete with Mongoose integration, `nestjs-cls` context mapping, Winston logging setup, soft-delete, and out-of-the-box user/JWT authentication modules.

@@ -4,13 +4,50 @@ A powerful command-line interface for the **NestExtended** ecosystem. This CLI a
 
 ## Installation
 
+To install globally (recommended for scaffolding new apps):
+
 ```bash
-yarn add -D @nest-extended/cli
+npm install -g @nest-extended/cli
 # or
+yarn global add @nest-extended/cli
+```
+
+To install as a dev dependency in an existing project:
+
+```bash
 npm install -D @nest-extended/cli
+# or
+yarn add -D @nest-extended/cli
 ```
 
 ## Commands
+
+### Generate Application (`g app`)
+
+Generates a fully configured NestJS application with standard best-practices built right in.
+It interactive prompts for your choice of database (currently supporting MongoDB) and handles scaffolding the app.
+
+**Includes:**
+- Running `@nestjs/cli`'s `nest new` command internally
+- `Mongoose` schema integration out of the box
+- Context-mapping out of the box using `nestjs-cls`
+- Built-in `AuthModule` with JSON Web Token (JWT) handling via `@nestjs/jwt` and password hashing with `bcrypt`
+- Fully functional `UsersModule` equipped with standard fields and authentication logic implementations.
+- Pre-configured `NestExtendedModule` context for soft deletes functionality
+
+**Usage:**
+
+```bash
+nest-cli g app <app-name>
+# or
+nest-cli generate app <app-name>
+```
+
+**Example:**
+
+```bash
+nest-cli g app e-commerce-dashboard
+```
 
 ### Generate Service (`g service`)
 
@@ -27,15 +64,15 @@ It also automatically updates your `src/app.module.ts` to include the new module
 **Usage:**
 
 ```bash
-nestx-cli g service <name>
+nest-cli g service <name>
 # or
-nestx-cli generate service <name>
+nest-cli generate service <name>
 ```
 
 **Example:**
 
 ```bash
-nestx-cli g service user-profile
+nest-cli g service user-profile
 ```
 
 This will create:
