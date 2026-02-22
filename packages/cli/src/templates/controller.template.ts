@@ -11,7 +11,7 @@ export const getController = (Name: string, name: string, url: string): string =
 } from '@nestjs/common';
 import { ${Name}Service } from './${name}.service';
 import { User, ModifyBody, setCreatedBy } from '@nest-extended/decorators';
-import { ${Name} } from 'src/schemas/${name}.schema';
+import { ${Name} } from '../../schemas/${name}.schema';
 
 @Controller('${url}')
 export class ${Name}Controller {
@@ -36,15 +36,15 @@ export class ${Name}Controller {
 
   @Patch('/:id')
   async patch(
-    @Query() query,
+    @Query() query: Record<string, any>,
     @Body() patch${Name}Dto: Partial<${Name}>,
-    @Param('id') id,
+    @Param('id') id: string,
   ) {
     return await this.${name}Service._patch(id, patch${Name}Dto, query);
   }
 
   @Delete('/:id')
-  async delete(@Param('id') id, @Query() query, @User() user) {
+  async delete(@Param('id') id: string, @Query() query: Record<string, any>, @User() user: Record<string, unknown>) {
     return await this.${name}Service._remove(id, query, user);
   }
 }

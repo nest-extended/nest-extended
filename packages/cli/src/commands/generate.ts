@@ -87,7 +87,8 @@ generateCommand
                 choices: ['mongo', 'sql'],
             },
         ];
-        // @ts-ignore
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-expect-error
         const answers = await inquirer.prompt(questions);
         const database = answers['database'];
 
@@ -98,9 +99,12 @@ generateCommand
 
         console.log(chalk.blue(`Generating NestJS app: ${appName}`));
 
+        const appDir = path.join(process.cwd(), appName);
+        const pkgManager = fs.existsSync(path.join(process.cwd(), 'yarn.lock')) ? 'yarn' : 'npm';
+
         // 1. Run nest new
         await new Promise<void>((resolve, reject) => {
-            const child = spawn('npx', ['@nestjs/cli', 'new', appName], {
+            const child = spawn('npx', ['@nestjs/cli', 'new', appName, '--package-manager', pkgManager], {
                 stdio: 'inherit',
                 shell: true,
             });
@@ -110,8 +114,6 @@ generateCommand
             });
         });
 
-        const appDir = path.join(process.cwd(), appName);
-        const pkgManager = fs.existsSync(path.join(appDir, 'yarn.lock')) ? 'yarn' : 'npm';
         const pkg = require('../../package.json');
         const nestExtendedVersion = pkg.version;
 
@@ -189,7 +191,7 @@ import { UsersModule } from './services/users/users.module';
     NestExtendedModule.forRoot({
       softDelete: {
         getQuery: () => ({ deleted: { $ne: true } }),
-        getData: (user: any) => ({
+        getData: (user: { _id?: string } | null) => ({
           deleted: true,
           deletedBy: user?._id,
           deletedAt: new Date(),

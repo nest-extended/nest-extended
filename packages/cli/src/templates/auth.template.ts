@@ -11,6 +11,7 @@ export const getAuthController = (): string => `import {
 import { AuthService } from './auth.service';
 import { Public } from './decorators/public.decorator';
 import { UsersService } from '../users/users.service';
+import { UsersDocument } from '../../schemas/users.schema';
 
 @Controller('authentication')
 export class AuthController {
@@ -22,7 +23,7 @@ export class AuthController {
   @Public()
   @HttpCode(HttpStatus.OK)
   @Post('')
-  signIn(@Body() signInDto: Record<string, any>) {
+  signIn(@Body() signInDto: Record<string, string>) {
     if (signInDto.strategy === 'local') {
       return this.authService.signInLocal(signInDto.email, signInDto.password);
     }
@@ -30,10 +31,10 @@ export class AuthController {
   }
 
   @Get('verify')
-  getProfile(@Request() req: any) {
+  getProfile(@Request() req: Record<string, any>) {
+    const user = req.user as UsersDocument;
     return {
-      user: this.usersService.sanitizeUser(req.user),
-      organizationUsers: req.orgUsers,
+      user: this.usersService.sanitizeUser(user),
     };
   }
 }
@@ -51,8 +52,9 @@ export class AuthService {
     private jwtService: JwtService,
   ) { }
 
-  async signInLocal(email: string, pass: string): Promise<any> {
-    const [user] = await this.usersService._find({
+  async signInLocal(email: string, pass: string): Promise<Record<string, unknown>> {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const [user] = (await this.usersService._find({
       email,
       $limit: 1,
       $select: [
@@ -64,17 +66,18 @@ export class AuthService {
         'createdAt',
         'updatedAt',
       ],
-    }, { pagination: false });
+    }, { pagination: false })) as Array<Record<string, any>>;
 
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!user) throw new UnauthorizedException();
 
-    const passwordValid = await bcrypt.compare(pass, user.password);
+    const passwordValid = await bcrypt.compare(pass, user.password as string);
     if (!passwordValid) {
       throw new UnauthorizedException();
     }
 
     const sanitizedUser = this.usersService.sanitizeUser(user);
-    const payload = { sub: { id: user._id }, user };
+    const payload = { sub: { id: user._id as string }, user };
     return {
       accessToken: await this.jwtService.signAsync(payload),
       user: sanitizedUser,
@@ -122,7 +125,6 @@ export const getAuthGuard = (): string => `import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { Request } from 'express';
 import { IS_PUBLIC_KEY } from './decorators/public.decorator';
 import { UsersService } from '../users/users.service';
 import { jwtConstants } from './constants/jwt-constants';
@@ -145,18 +147,18 @@ export class AuthGuard implements CanActivate {
     if (isPublic) {
       return true;
     }
-    const request = context.switchToHttp().getRequest();
-    const token = this.extractTokenFromHeader(request as Request);
+    const request = context.switchToHttp().getRequest<{ user?: Record<string, unknown>, headers: Record<string, string | undefined> }>();
+    const token = this.extractTokenFromHeader(request);
     if (!token) {
       throw new UnauthorizedException();
     }
     try {
-      const payload = await this.jwtService.verifyAsync(token, {
+      const payload = await this.jwtService.verifyAsync<{ sub: { id: string } }>(token, {
         secret: jwtConstants.secret,
       });
-      const user = await this.usersService._get(payload.sub.id);
+      const user = (await this.usersService._get(payload.sub.id)) as Record<string, unknown>;
       if (user) {
-        request['user'] = user;
+        request.user = user;
         this.cls.set('user', user);
         return true;
       }
@@ -166,7 +168,7 @@ export class AuthGuard implements CanActivate {
     throw new UnauthorizedException();
   }
 
-  private extractTokenFromHeader(request: Request): string | undefined {
+  private extractTokenFromHeader(request: { headers: Record<string, string | undefined> }): string | undefined {
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
     return type === 'Bearer' ? token : undefined;
   }

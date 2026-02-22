@@ -3,7 +3,7 @@ export const getModule = (Name: string, name: string): string => `import { Modul
 import { MongooseModule } from '@nestjs/mongoose';
 import { ${Name}Controller } from './${name}.controller';
 import { ${Name}Service } from './${name}.service';
-import { ${Name}, ${Name}Schema } from 'src/schemas/${name}.schema';
+import { ${Name}, ${Name}Schema } from '../../schemas/${name}.schema';
 
 @Module({
   imports: [

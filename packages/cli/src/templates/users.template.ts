@@ -35,7 +35,7 @@ export const getUsersService = (): string => `import { Model } from 'mongoose';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { NestService } from '@nest-extended/mongoose';
-import { Users, UsersDocument } from 'src/schemas/users.schema';
+import { Users, UsersDocument } from '../../schemas/users.schema';
 
 @Injectable()
 export class UsersService extends NestService<Users, UsersDocument> {
@@ -45,9 +45,8 @@ export class UsersService extends NestService<Users, UsersDocument> {
     super(usersModel);
   }
 
-  sanitizeUser(user: Users) {
-    // @ts-expect-error can be error
-    const sanitized = user.toObject ? user.toObject() : { ...user };
+  sanitizeUser(user: UsersDocument) {
+    const sanitized = user.toObject() as Record<string, unknown>;
     delete sanitized['password'];
     return sanitized;
   }
