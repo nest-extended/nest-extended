@@ -1,6 +1,6 @@
 {
   "name": "@nest-extended/core",
-  "version": "0.0.2-beta-2",
+  "version": "0.0.2-beta-3",
   "private": false,
   "type": "commonjs",
   "main": "./src/index.js",
