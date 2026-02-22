@@ -5,7 +5,7 @@
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "bin": {
-    "nestx-cli": "./src/index.js"
+    "nest-cli": "./src/index.js"
   },
   "dependencies": {
     "chalk": "^4.1.2",
