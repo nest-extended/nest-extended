@@ -10,9 +10,9 @@ export const getController = (Name: string, name: string, url: string): string =
   Query,
 } from '@nestjs/common';
 import { ${Name}Service } from './${name}.service';
-import { User } from '@nest-extended/core';
+import { User } from '@nest-extended/decorators';
 import { ${Name} } from 'src/schemas/${name}.schema';
-import { ModifyBody, setCreatedBy } from '@nest-extended/core';
+import { ModifyBody, setCreatedBy } from '@nest-extended/decorators';
 
 @Controller('${url}')
 export class ${Name}Controller {

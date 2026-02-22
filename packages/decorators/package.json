@@ -1,6 +1,6 @@
 {
-  "name": "@nest-extended/core",
-  "version": "0.0.1-beta-10",
+  "name": "@nest-extended/decorators",
+  "version": "0.0.1",
   "private": false,
   "type": "commonjs",
   "main": "./src/index.js",

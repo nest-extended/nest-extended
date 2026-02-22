@@ -5,11 +5,10 @@ This package provides the core building blocks for NestJS applications built wit
 ## Key Features
 
 - **Generic Controller (`NestController`)**: A base controller class that handles common CRUD operations (`find`, `get`, `create`, `patch`, `delete`) by delegating to a service implementing `ServiceOptions`.
-- **Decorators**:
-    - `@User()`: Retrieves the current user from the request (integrates with `nestjs-cls` or request object).
-    - `@Public()`: Marks a route as public (useful for authentication guards).
-    - `@ModifyBody()`: Allows modification of the request body before validation (e.g., setting `createdBy`).
-- **Configuration**: Interfaces for configuring soft delete behavior and other service options.
+- **Decorators**: Moved to `@nest-extended/decorators`.
+    - `@User()`
+    - `@Public()`
+    - `@ModifyBody()`
 
 ## Usage
 
@@ -31,16 +30,8 @@ export class MyController extends NestController<MyResource> {
 
 ### Decorators
 
+Decorators have been moved to their own package.
+
 ```typescript
-import { User, Public, ModifyBody, setCreatedBy } from '@nest-extended/core';
-
-@Public()
-@Get()
-findAll() { ... }
-
-@Post()
-create(@ModifyBody(setCreatedBy()) body: CreateDto) { ... }
-
-@Get('profile')
-getProfile(@User() user: any) { ... }
+import { User, Public, ModifyBody, setCreatedBy } from '@nest-extended/decorators';
 ```
