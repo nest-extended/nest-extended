@@ -22,7 +22,7 @@ export class ${Name}Controller {
     return await this.${name}Service._find(query);
   }
 
-  @Get('/:id?')
+  @Get('/:id')
   async get(@Query() query: Record<string, any>, @Param('id') id: string) {
     return await this.${name}Service._get(id, query);
   }
@@ -34,7 +34,7 @@ export class ${Name}Controller {
     return await this.${name}Service._create(create${Name}Dto);
   }
 
-  @Patch('/:id?')
+  @Patch('/:id')
   async patch(
     @Query() query,
     @Body() patch${Name}Dto: Partial<${Name}>,
@@ -43,7 +43,7 @@ export class ${Name}Controller {
     return await this.${name}Service._patch(id, patch${Name}Dto, query);
   }
 
-  @Delete('/:id?')
+  @Delete('/:id')
   async delete(@Param('id') id, @Query() query, @User() user) {
     return await this.${name}Service._remove(id, query, user);
   }

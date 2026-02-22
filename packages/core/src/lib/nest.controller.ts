@@ -22,7 +22,7 @@ export class NestController<T> {
         return await this.service._find(query);
     }
 
-    @Get('/:id?')
+    @Get('/:id')
     async get(@Query() query: Record<string, any>, @Param('id') id: string) {
         return await this.service._get(id, query);
     }
@@ -32,7 +32,7 @@ export class NestController<T> {
         return await this.service._create(createDto);
     }
 
-    @Patch('/:id?')
+    @Patch('/:id')
     async patch(
         @Query() query: Record<string, any>,
         @Body() patchDto: Partial<T>,
@@ -41,7 +41,7 @@ export class NestController<T> {
         return await this.service._patch(id, patchDto, query);
     }
 
-    @Delete('/:id?')
+    @Delete('/:id')
     async delete(
         @Param('id') id: string,
         @Query() query: Record<string, any>,

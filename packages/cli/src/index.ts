@@ -7,10 +7,19 @@ const program = new Command();
 
 import * as chalk from 'chalk';
 
+const pkg = require('../package.json');
+
 program
     .name('nest-cli')
     .description('CLI for @nest-extended packages')
-    .version('0.0.1');
+    .version(pkg.version);
+
+program.command('version')
+    .alias('v')
+    .description('Output the version number')
+    .action(() => {
+        console.log(pkg.version);
+    });
 
 program.addCommand(generateCommand);
 program.addCommand(migrationCommand);
