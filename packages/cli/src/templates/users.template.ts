@@ -46,7 +46,7 @@ export class UsersService extends NestService<Users, UsersDocument> {
   }
 
   sanitizeUser(user: UsersDocument) {
-    const sanitized = user.toObject() as Record<string, unknown>;
+    const sanitized = user.toObject() as unknown as Record<string, unknown>
     delete sanitized['password'];
     return sanitized;
   }

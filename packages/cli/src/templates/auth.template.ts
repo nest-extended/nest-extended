@@ -52,32 +52,36 @@ export class AuthService {
     private jwtService: JwtService,
   ) { }
 
-  async signInLocal(email: string, pass: string): Promise<Record<string, unknown>> {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const [user] = (await this.usersService._find({
-      email,
-      $limit: 1,
-      $select: [
-        '_id',
-        'firstName',
-        'lastName',
-        'email',
-        'password',
-        'createdAt',
-        'updatedAt',
-      ],
-    }, { pagination: false })) as Array<Record<string, any>>;
+  async signInLocal(
+    email: string,
+    pass: string,
+  ): Promise<Record<string, unknown>> {
+    const [user] = await this.usersService._find(
+      {
+        email,
+        $limit: 1,
+        $select: [
+          '_id',
+          'firstName',
+          'lastName',
+          'email',
+          'password',
+          'createdAt',
+          'updatedAt',
+        ],
+      },
+      { pagination: false },
+    );
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!user) throw new UnauthorizedException();
 
-    const passwordValid = await bcrypt.compare(pass, user.password as string);
+    const passwordValid = await bcrypt.compare(pass, user.password);
     if (!passwordValid) {
       throw new UnauthorizedException();
     }
 
     const sanitizedUser = this.usersService.sanitizeUser(user);
-    const payload = { sub: { id: user._id as string }, user };
+    const payload = { sub: { id: user._id as unknown as string }, user };
     return {
       accessToken: await this.jwtService.signAsync(payload),
       user: sanitizedUser,
@@ -156,7 +160,9 @@ export class AuthGuard implements CanActivate {
       const payload = await this.jwtService.verifyAsync<{ sub: { id: string } }>(token, {
         secret: jwtConstants.secret,
       });
-      const user = (await this.usersService._get(payload.sub.id)) as Record<string, unknown>;
+       const user = (await this.usersService._get(
+        payload.sub.id,
+      )) as unknown as Record<string, unknown>;
       if (user) {
         request.user = user;
         this.cls.set('user', user);
