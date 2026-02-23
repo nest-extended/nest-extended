@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { Types } from 'mongoose';
-import _ from 'lodash';
+import * as _ from 'lodash';
 
 export const FILTERS = {
     $sort: (value: any) => convertSort(value),

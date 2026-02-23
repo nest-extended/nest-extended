@@ -9,7 +9,7 @@ export const getAuthController = (): string => `import {
   BadRequestException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { Public } from './decorators/public.decorator';
+import { Public } from '@nest-extended/decorators';
 import { UsersService } from '../users/users.service';
 import { UsersDocument } from '../../schemas/users.schema';
 
@@ -129,7 +129,7 @@ export const getAuthGuard = (): string => `import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
-import { IS_PUBLIC_KEY } from './decorators/public.decorator';
+import { IS_PUBLIC_KEY } from '@nest-extended/decorators';
 import { UsersService } from '../users/users.service';
 import { jwtConstants } from './constants/jwt-constants';
 import { ClsService } from 'nestjs-cls';
@@ -179,11 +179,6 @@ export class AuthGuard implements CanActivate {
     return type === 'Bearer' ? token : undefined;
   }
 }
-`;
-
-export const getPublicDecorator = (): string => `import { SetMetadata } from '@nestjs/common';
-export const IS_PUBLIC_KEY = 'isPublic';
-export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 `;
 
 export const getJwtConstants = (): string => `import { randomBytes } from 'crypto';

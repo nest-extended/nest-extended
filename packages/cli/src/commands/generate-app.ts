@@ -12,7 +12,6 @@ import {
     getAuthModule,
     getAuthService,
     getJwtConstants,
-    getPublicDecorator,
 } from '../templates/auth.template';
 import { getUsersSchema, getUsersService } from '../templates/users.template';
 
@@ -163,14 +162,12 @@ import { UsersModule } from './services/users/users.module';
     const authDir = path.join(appDir, 'src/services/auth');
     fs.ensureDirSync(authDir);
     fs.ensureDirSync(path.join(authDir, 'constants'));
-    fs.ensureDirSync(path.join(authDir, 'decorators'));
 
     fs.writeFileSync(path.join(authDir, 'auth.module.ts'), getAuthModule());
     fs.writeFileSync(path.join(authDir, 'auth.service.ts'), getAuthService());
     fs.writeFileSync(path.join(authDir, 'auth.controller.ts'), getAuthController());
     fs.writeFileSync(path.join(authDir, 'auth.guard.ts'), getAuthGuard());
     fs.writeFileSync(path.join(authDir, 'constants/jwt-constants.ts'), getJwtConstants());
-    fs.writeFileSync(path.join(authDir, 'decorators/public.decorator.ts'), getPublicDecorator());
 
     console.log(chalk.blue('Running lint...'));
     await new Promise<void>((resolve) => {
