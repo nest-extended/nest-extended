@@ -1,6 +1,6 @@
 {
   "name": "@nest-extended/cli",
-  "version": "0.0.2-beta-4",
+  "version": "0.0.2-beta-5",
   "private": false,
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
