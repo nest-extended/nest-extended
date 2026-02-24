@@ -1,13 +1,13 @@
 {
   "name": "@nest-extended/mongoose",
-  "version": "0.0.2-beta-5",
+  "version": "0.0.2-beta-6",
   "private": false,
   "type": "commonjs",
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "dependencies": {
     "tslib": "^2.3.0",
-    "@nest-extended/core": "0.0.2-beta-5",
+    "@nest-extended/core": "0.0.2-beta-6",
     "zod": "^3.22.4"
   }
 }
