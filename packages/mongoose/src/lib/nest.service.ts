@@ -60,6 +60,7 @@ export class NestService<M, D> {
                 pagination: this.options.pagination as P,
             },
     ): Promise<P extends true ? PaginatedResponse<D> : D[]> {
+        query = { ...query };
         // Apply soft delete filter if enabled
         this.applySoftDeleteFilter(query);
 
@@ -121,6 +122,7 @@ export class NestService<M, D> {
         data: Record<any, any>,
         query: Record<string, any> = {},
     ): Promise<D | D[] | null> {
+        query = { ...query };
         // Apply soft delete filter if enabled
         this.applySoftDeleteFilter(query);
 
@@ -152,6 +154,7 @@ export class NestService<M, D> {
         id: string,
         query: Record<string, any> = {},
     ): Promise<D | null> {
+        query = { ...query };
         // Apply soft delete filter if enabled
         this.applySoftDeleteFilter(query);
 
@@ -184,6 +187,7 @@ export class NestService<M, D> {
         query: Record<string, any> = {},
         user?: any,
     ): Promise<D | D[] | null> {
+        query = { ...query };
         const searchQuery: FilterQuery<Record<any, any>> = id
             ? { _id: id, ...rawQuery(query) }
             : rawQuery(query);

@@ -31,7 +31,7 @@ function getLimit(limit: any, paginate: any) {
     return limit;
 }
 
-export const rawQuery = (query: any) => {
+export const rawQuery = (query: any = {}) => {
     const rawQ: Record<string, any> = {};
     for (const key in query) {
         if (query.hasOwnProperty(key)) {
@@ -42,7 +42,7 @@ export const rawQuery = (query: any) => {
                     const regexPattern = query[key][field];
                     rawQ[field] = { $regex: new RegExp(regexPattern, 'i') };
                 } else if (filterKey === 'or' && Array.isArray(query[key])) {
-                    rawQ['$or'] = query[key].map((subQuery: any) => rawQuery(subQuery));
+                    rawQ['$or'] = query[key].map((subQuery: any = {}) => rawQuery(subQuery));
                 }
             } else {
                 if (Types.ObjectId.isValid(String(query[key]))) {

@@ -107,9 +107,11 @@ export const generateAppAction = async (appName: string) => {
     let appModuleContent = fs.readFileSync(appModulePath, 'utf8');
 
     const importsToAdd = `
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { GlobalExceptionFilter } from '@nest-extended/mongoose';
 import { ConfigModule } from '@nestjs/config';
 import { ClsModule } from 'nestjs-cls';
-import { NestExtendedModule } from '@nest-extended/core';
+import { NestExtendedModule, NullResponseInterceptor } from '@nest-extended/core';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from './services/auth/auth.module';
 import { UsersModule } from './services/users/users.module';
@@ -140,6 +142,20 @@ import { UsersModule } from './services/users/users.module';
     UsersModule,`;
 
     appModuleContent = appModuleContent.replace(/imports:\s*\[/, `imports: [\n${nestImports}`);
+
+    const appProviders = `providers: [
+    AppService,
+    {
+      provide: APP_FILTER,
+      useClass: GlobalExceptionFilter,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: NullResponseInterceptor,
+    },
+  ],`;
+    appModuleContent = appModuleContent.replace(/providers:\s*\[AppService\],?/, appProviders);
+
     fs.writeFileSync(appModulePath, appModuleContent);
 
     // Write .env file

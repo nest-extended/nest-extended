@@ -5,3 +5,4 @@ export * from './common/cls.helper';
 export * from './types/nest-extended.config';
 export * from './types/PaginatedResponse';
 export * from './types/ServiceOptions';
+export * from './interceptors/null-response.interceptor';

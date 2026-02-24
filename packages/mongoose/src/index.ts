@@ -3,3 +3,5 @@ export * from './common/nestify';
 export * from './common/query.utils';
 export * from './common/ensureObjectId';
 export * from './types/Nestify';
+export * from './filters/global-exception.filter';
+export * from './filters/mongo-error.filter';
