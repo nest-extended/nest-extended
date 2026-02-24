@@ -13,7 +13,7 @@ import {
     getAuthService,
     getJwtConstants,
 } from '../templates/auth.template';
-import { getUsersSchema, getUsersService } from '../templates/users.template';
+import { getUsersController, getUsersSchema, getUsersService } from '../templates/users.template';
 
 export const generateAppAction = async (appName: string) => {
     const questions = [
@@ -170,7 +170,7 @@ import { UsersModule } from './services/users/users.module';
     fs.writeFileSync(path.join(schemasDir, 'users.schema.ts'), getUsersSchema());
     fs.writeFileSync(path.join(usersDir, 'users.module.ts'), getModule('Users', 'users'));
     fs.writeFileSync(path.join(usersDir, 'users.service.ts'), getUsersService());
-    fs.writeFileSync(path.join(usersDir, 'users.controller.ts'), getController('Users', 'users', 'users'));
+    fs.writeFileSync(path.join(usersDir, 'users.controller.ts'), getUsersController());
     fs.ensureDirSync(path.join(usersDir, 'dto'));
     fs.writeFileSync(path.join(usersDir, 'dto/users.dto.ts'), getDto('Users'));
 

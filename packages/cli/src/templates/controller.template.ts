@@ -1,6 +1,5 @@
 
 export const getController = (Name: string, name: string, url: string): string => `import {
-  Body,
   Controller,
   Delete,
   Get,
@@ -37,7 +36,7 @@ export class ${Name}Controller {
   @Patch('/:id')
   async patch(
     @Query() query: Record<string, any>,
-    @Body() patch${Name}Dto: Partial<${Name}>,
+    @ModifyBody(setCreatedBy('updatedBy')) patch${Name}Dto: Partial<${Name}>,
     @Param('id') id: string,
   ) {
     return await this.${name}Service._patch(id, patch${Name}Dto, query);
