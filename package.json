@@ -45,7 +45,7 @@
     "@types/glob": "^9.0.0",
     "@types/inquirer": "^9.0.9",
     "@types/lodash": "^4.17.24",
-    "@types/node": "18.16.9",
+    "@types/node": "25.3.2",
     "eslint": "^9.8.0",
     "eslint-config-prettier": "^9.0.0",
     "jsonc-eslint-parser": "^2.1.0",
