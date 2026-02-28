@@ -52,7 +52,7 @@
     "nx": "22.5.2",
     "prettier": "^2.6.2",
     "tslib": "^2.3.0",
-    "typescript": "~5.7.2",
+    "typescript": "~5.8.3",
     "typescript-eslint": "8.56.0",
     "webpack-cli": "^5.1.4"
   }
