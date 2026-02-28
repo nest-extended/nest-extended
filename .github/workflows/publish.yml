@@ -15,7 +15,7 @@ jobs:
           fetch-depth: 0
 
       - name: Node Setup
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
 
@@ -61,7 +61,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
       - name: Node Setup
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
@@ -83,7 +83,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
       - name: Node Setup
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
@@ -105,7 +105,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
       - name: Node Setup
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
@@ -127,7 +127,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
       - name: Node Setup
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
