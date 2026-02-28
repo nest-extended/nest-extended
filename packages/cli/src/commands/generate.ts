@@ -2,6 +2,7 @@
 import { Command } from 'commander';
 import { generateServiceAction } from './generate-service';
 import { generateAppAction } from './generate-app';
+import { generateAuthAction } from './generate-auth';
 
 export const generateCommand = new Command('generate')
     .alias('g')
@@ -16,3 +17,8 @@ generateCommand
     .command('app <name>')
     .description('Generate a new application')
     .action(generateAppAction);
+
+generateCommand
+    .command('auth')
+    .description('Generate authentication (Auth and Users services)')
+    .action(generateAuthAction);

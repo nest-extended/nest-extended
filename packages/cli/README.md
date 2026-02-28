@@ -25,14 +25,14 @@ yarn add -D @nest-extended/cli
 ### Generate Application (`g app`)
 
 Generates a fully configured NestJS application with standard best-practices built right in.
-It interactive prompts for your choice of database (currently supporting MongoDB) and handles scaffolding the app.
+It interactively prompts for your choice of database (currently supporting MongoDB) and handles scaffolding the app. It also prompts whether you want to automatically generate authentication modules.
 
 **Includes:**
 - Running `@nestjs/cli`'s `nest new` command internally
 - `Mongoose` schema integration out of the box
 - Context-mapping out of the box using `nestjs-cls`
-- Built-in `AuthModule` with JSON Web Token (JWT) handling via `@nestjs/jwt` and password hashing with `bcrypt`
-- Fully functional `UsersModule` equipped with standard fields and authentication logic implementations.
+- Built-in `AuthModule` with JSON Web Token (JWT) handling via `@nestjs/jwt` and password hashing with `bcrypt` (opt-in)
+- Fully functional `UsersModule` equipped with standard fields and authentication logic implementations. (opt-in)
 - Pre-configured `NestExtendedModule` context for soft deletes functionality
 
 **Usage:**
@@ -49,13 +49,25 @@ nest-cli generate app <app-name>
 nest-cli g app e-commerce-dashboard
 ```
 
+### Generate Authentication (`g auth`)
+
+If you generated a NestJS application without the authentication modules and want to add them later, use the `auth` command. This will scaffold out the `Auth` and `Users` modules, install `@nestjs/jwt` and `bcrypt`, and hook them into your `app.module.ts`.
+
+**Usage:**
+
+```bash
+nest-cli g auth
+# or
+nest-cli generate auth
+```
+
 ### Generate Service (`g service`)
 
 Generates a complete resource bundle including:
 - **Module**: Registers the controller and service.
 - **Service**: Extends `NestService` from `@nest-extended/mongoose`.
 - **Controller**: Extends `NestController` from `@nest-extended/core`.
-- **Schema**: Mongoose schema with `timestamps` and soft delete fields.
+- **Schema**: Mongoose schema with `timestamps` and soft delete fields (only injects `createdBy`, `updatedBy`, `deletedBy` mapping if Auth was generated).
 - **DTO**: Data Transfer Object with validation.
 - **Specs**: Unit tests for service and controller.
 

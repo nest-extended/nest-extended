@@ -6,14 +6,7 @@ import { spawn } from 'child_process';
 import { getModule } from '../templates/module.template';
 import { getController } from '../templates/controller.template';
 import { getDto } from '../templates/dto.template';
-import {
-    getAuthController,
-    getAuthGuard,
-    getAuthModule,
-    getAuthService,
-    getJwtConstants,
-} from '../templates/auth.template';
-import { getUsersController, getUsersSchema, getUsersService } from '../templates/users.template';
+import { generateAuthServices } from '../lib/generate-auth-services';
 
 export const generateAppAction = async (appName: string) => {
     const questions = [
@@ -30,12 +23,19 @@ export const generateAppAction = async (appName: string) => {
             message: 'Which database would you like to use?',
             choices: ['mongoose', 'sqlite', 'prisma'],
         },
+        {
+            type: 'confirm',
+            name: 'generateAuth',
+            message: 'Would you like to generate authentication (Users and Auth services)?',
+            default: true,
+        },
     ];
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-expect-error
     const answers = await inquirer.prompt(questions);
     const database = answers['database'];
     const pkgManager = answers['pkgManager'];
+    const generateAuth = answers['generateAuth'];
 
     if (database === 'sqlite' || database === 'prisma') {
         console.error(chalk.red(`Error: We are not supporting ${database} now`));
@@ -66,20 +66,25 @@ export const generateAppAction = async (appName: string) => {
     // 2. Install dependencies
     await new Promise<void>((resolve, reject) => {
         const installArgs = pkgManager === 'npm' ? ['install'] : ['add'];
+        const baseDeps = [
+            '@nestjs/mongoose',
+            'mongoose',
+            '@nestjs/config',
+            'nestjs-cls',
+            `@nest-extended/core@${nestExtendedVersion}`,
+            `@nest-extended/mongoose@${nestExtendedVersion}`,
+            `@nest-extended/decorators@${nestExtendedVersion}`,
+            'zod'
+        ];
+        if (generateAuth) {
+            baseDeps.push('@nestjs/jwt', 'bcrypt');
+        }
+
         const child = spawn(
             pkgManager,
             [
                 ...installArgs,
-                '@nestjs/mongoose',
-                'mongoose',
-                '@nestjs/config',
-                'nestjs-cls',
-                '@nestjs/jwt',
-                'bcrypt',
-                `@nest-extended/core@${nestExtendedVersion}`,
-                `@nest-extended/mongoose@${nestExtendedVersion}`,
-                `@nest-extended/decorators@${nestExtendedVersion}`,
-                'zod'
+                ...baseDeps
             ],
             {
                 stdio: 'inherit',
@@ -94,18 +99,20 @@ export const generateAppAction = async (appName: string) => {
     });
 
     // 3. Install Dev dependencies
-    await new Promise<void>((resolve, reject) => {
-        const devArgs = pkgManager === 'npm' ? ['install', '-D'] : ['add', '-D'];
-        const child = spawn(pkgManager, [...devArgs, '@types/bcrypt'], {
-            stdio: 'inherit',
-            cwd: appDir,
-            shell: true,
+    if (generateAuth) {
+        await new Promise<void>((resolve, reject) => {
+            const devArgs = pkgManager === 'npm' ? ['install', '-D'] : ['add', '-D'];
+            const child = spawn(pkgManager, [...devArgs, '@types/bcrypt'], {
+                stdio: 'inherit',
+                cwd: appDir,
+                shell: true,
+            });
+            child.on('close', (code) => {
+                if (code === 0) resolve();
+                else reject(new Error(`${pkgManager} dev install failed with code ${code}`));
+            });
         });
-        child.on('close', (code) => {
-            if (code === 0) resolve();
-            else reject(new Error(`${pkgManager} dev install failed with code ${code}`));
-        });
-    });
+    }
 
     console.log(chalk.blue('Configuring project...'));
 
@@ -113,17 +120,24 @@ export const generateAppAction = async (appName: string) => {
     const appModulePath = path.join(appDir, 'src/app.module.ts');
     let appModuleContent = fs.readFileSync(appModulePath, 'utf8');
 
+    const authImports = generateAuth ? `
+import { AuthModule } from './services/auth/auth.module';
+import { UsersModule } from './services/users/users.module';` : '';
     const importsToAdd = `
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { GlobalExceptionFilter } from '@nest-extended/mongoose';
 import { ConfigModule } from '@nestjs/config';
 import { ClsModule } from 'nestjs-cls';
 import { NestExtendedModule, NullResponseInterceptor } from '@nest-extended/core';
-import { MongooseModule } from '@nestjs/mongoose';
-import { AuthModule } from './services/auth/auth.module';
-import { UsersModule } from './services/users/users.module';
+import { MongooseModule } from '@nestjs/mongoose';${authImports}
 `;
     appModuleContent = importsToAdd + appModuleContent;
+
+    const deletedByProp = generateAuth ? `
+          deletedBy: user?._id,` : '';
+    const authModuleImports = generateAuth ? `
+    AuthModule,
+    UsersModule,` : '';
 
     const nestImports = `
     ConfigModule.forRoot({
@@ -138,17 +152,15 @@ import { UsersModule } from './services/users/users.module';
       softDelete: {
         getQuery: () => ({ deleted: { $ne: true } }),
         getData: (user: { _id?: string } | null) => ({
-          deleted: true,
-          deletedBy: user?._id,
+          deleted: true,${deletedByProp}
           deletedAt: new Date(),
         }),
       },
     }),
-    MongooseModule.forRoot(process.env.MONGODB_URI || 'mongodb://localhost:27017/test'),
-    AuthModule,
-    UsersModule,`;
+    MongooseModule.forRoot(process.env.MONGODB_URI || 'mongodb://localhost:27017/test'),${authModuleImports}`;
 
-    appModuleContent = appModuleContent.replace(/imports:\s*\[/, `imports: [\n${nestImports}`);
+    appModuleContent = appModuleContent.replace(/imports:\s*\[/, `imports: [
+${nestImports}`);
 
     const appProviders = `providers: [
     AppService,
@@ -166,31 +178,13 @@ import { UsersModule } from './services/users/users.module';
     fs.writeFileSync(appModulePath, appModuleContent);
 
     // Write .env file
-    fs.writeFileSync(path.join(appDir, '.env'), 'MONGODB_URI=mongodb://localhost:27017/test\nJWT_SECRET=super-secret-jwt-key\n');
+    fs.writeFileSync(path.join(appDir, '.env'), `MONGODB_URI=mongodb://localhost:27017/test
+JWT_SECRET=super-secret-jwt-key
+`);
 
-    // 5. Generate Users Service
-    const usersDir = path.join(appDir, 'src/services/users');
-    const schemasDir = path.join(appDir, 'src/schemas');
-    fs.ensureDirSync(usersDir);
-    fs.ensureDirSync(schemasDir);
-
-    fs.writeFileSync(path.join(schemasDir, 'users.schema.ts'), getUsersSchema());
-    fs.writeFileSync(path.join(usersDir, 'users.module.ts'), getModule('Users', 'users'));
-    fs.writeFileSync(path.join(usersDir, 'users.service.ts'), getUsersService());
-    fs.writeFileSync(path.join(usersDir, 'users.controller.ts'), getUsersController());
-    fs.ensureDirSync(path.join(usersDir, 'dto'));
-    fs.writeFileSync(path.join(usersDir, 'dto/users.dto.ts'), getDto('Users'));
-
-    // 6. Generate Auth Service
-    const authDir = path.join(appDir, 'src/services/auth');
-    fs.ensureDirSync(authDir);
-    fs.ensureDirSync(path.join(authDir, 'constants'));
-
-    fs.writeFileSync(path.join(authDir, 'auth.module.ts'), getAuthModule());
-    fs.writeFileSync(path.join(authDir, 'auth.service.ts'), getAuthService());
-    fs.writeFileSync(path.join(authDir, 'auth.controller.ts'), getAuthController());
-    fs.writeFileSync(path.join(authDir, 'auth.guard.ts'), getAuthGuard());
-    fs.writeFileSync(path.join(authDir, 'constants/jwt-constants.ts'), getJwtConstants());
+    if (generateAuth) {
+        generateAuthServices(appDir);
+    }
 
     console.log(chalk.blue('Running lint...'));
     await new Promise<void>((resolve) => {

@@ -23,7 +23,9 @@ export const generateServiceAction = async (rawName: string) => {
 
     console.log(`Generating service for: ${Name} (${name})`);
 
-    createFileWithContent(`src/schemas/${name}.schema.ts`, getSchema(Name));
+    const isAuthGenerated = fs.existsSync(path.join(process.cwd(), 'src/services/auth'));
+
+    createFileWithContent(`src/schemas/${name}.schema.ts`, getSchema(Name, 'Users', isAuthGenerated));
     createFileWithContent(`src/services/${name}/${name}.module.ts`, getModule(Name, name));
     createFileWithContent(`src/services/${name}/${name}.service.ts`, getService(Name, name));
     createFileWithContent(
