@@ -19,25 +19,32 @@ export const generateAppAction = async (appName: string) => {
     const questions = [
         {
             type: 'list',
+            name: 'pkgManager',
+            message: 'Which package manager would you like to use?',
+            choices: ['npm', 'yarn', 'pnpm'],
+            default: 'yarn',
+        },
+        {
+            type: 'list',
             name: 'database',
             message: 'Which database would you like to use?',
-            choices: ['mongo', 'sql'],
+            choices: ['mongoose', 'sqlite', 'prisma'],
         },
     ];
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-expect-error
     const answers = await inquirer.prompt(questions);
     const database = answers['database'];
+    const pkgManager = answers['pkgManager'];
 
-    if (database === 'sql') {
-        console.error(chalk.red('Error: We are not supporting sql now'));
+    if (database === 'sqlite' || database === 'prisma') {
+        console.error(chalk.red(`Error: We are not supporting ${database} now`));
         process.exit(1);
     }
 
     console.log(chalk.blue(`Generating NestJS app: ${appName}`));
 
     const appDir = path.join(process.cwd(), appName);
-    const pkgManager = fs.existsSync(path.join(process.cwd(), 'yarn.lock')) ? 'yarn' : 'npm';
 
     // 1. Run nest new
     await new Promise<void>((resolve, reject) => {
@@ -58,7 +65,7 @@ export const generateAppAction = async (appName: string) => {
 
     // 2. Install dependencies
     await new Promise<void>((resolve, reject) => {
-        const installArgs = pkgManager === 'yarn' ? ['add'] : ['install'];
+        const installArgs = pkgManager === 'npm' ? ['install'] : ['add'];
         const child = spawn(
             pkgManager,
             [
@@ -88,7 +95,7 @@ export const generateAppAction = async (appName: string) => {
 
     // 3. Install Dev dependencies
     await new Promise<void>((resolve, reject) => {
-        const devArgs = pkgManager === 'yarn' ? ['add', '-D'] : ['install', '-D'];
+        const devArgs = pkgManager === 'npm' ? ['install', '-D'] : ['add', '-D'];
         const child = spawn(pkgManager, [...devArgs, '@types/bcrypt'], {
             stdio: 'inherit',
             cwd: appDir,
