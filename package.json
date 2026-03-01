@@ -3,6 +3,18 @@
   "version": "0.0.2-beta-7",
   "license": "MIT",
   "private": true,
+  "contributors": [
+    {
+      "name": "Soubhik Kumar Gon",
+      "email": "soubhikgon2004@gmail.com",
+      "url": "https://github.com/zakhaev26"
+    },
+    {
+      "name": "Santanu Prasad Sahoo",
+      "email": "sahoosantanu92@gmail.com",
+      "url": "https://github.com/santanup"
+    }
+  ],
   "dependencies": {
     "@nestjs/common": "^11.1.14",
     "@nestjs/core": "^11.1.14",

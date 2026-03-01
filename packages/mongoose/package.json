@@ -3,6 +3,18 @@
   "version": "0.0.2-beta-7",
   "private": false,
   "type": "commonjs",
+  "contributors": [
+    {
+      "name": "Soubhik Kumar Gon",
+      "email": "soubhikgon2004@gmail.com",
+      "url": "https://github.com/zakhaev26"
+    },
+    {
+      "name": "Santanu Prasad Sahoo",
+      "email": "sahoosantanu92@gmail.com",
+      "url": "https://github.com/santanup"
+    }
+  ],
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "dependencies": {
