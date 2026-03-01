@@ -1,11 +1,11 @@
-import { FilterQuery, Model, UpdateQuery } from 'mongoose';
+import { Model, UpdateQuery, QueryFilter } from 'mongoose';
 import { PaginatedResponse } from '@nest-extended/core';
 import { BadRequestException } from '@nestjs/common';
 import { assignFilters, FILTERS, rawQuery } from '../common/query.utils';
 import { options } from '@nest-extended/core';
 import { NestServiceOptions } from '@nest-extended/core';
 import { nestify } from '../common/nestify';
-import { RootFilterQuery } from 'mongoose';
+
 import { SoftDeleteConfig } from '@nest-extended/core';
 import { getCurrentUser } from '@nest-extended/core';
 
@@ -69,7 +69,7 @@ export class NestService<M, D> {
         const isPaginationEnabled = findOptions.pagination ?? this.options.pagination;
 
         const q = this.model.find(searchQuery);
-        nestify(q, filters, options, !isPaginationEnabled);
+        nestify(q as any, filters, options, !isPaginationEnabled);
 
         if (!isPaginationEnabled) {
             return (await q.exec()) as P extends true ? PaginatedResponse<D> : D[];
@@ -127,7 +127,7 @@ export class NestService<M, D> {
         this.applySoftDeleteFilter(query);
 
         const filters = assignFilters({}, query, FILTERS, {});
-        const searchQuery: FilterQuery<D> = id
+        const searchQuery: QueryFilter<D> = id
             ? { _id: id, ...rawQuery(query) }
             : rawQuery(query);
 
@@ -136,7 +136,7 @@ export class NestService<M, D> {
         const q = this._getOrFind(isSingleUpdate, searchQuery, data);
 
         if (isSingleUpdate) {
-            nestify(q, filters, options, isSingleUpdate);
+            nestify(q as any, filters, options, isSingleUpdate);
             // @ts-expect-error - mongoose query exec
             return q.exec();
         }
@@ -159,21 +159,21 @@ export class NestService<M, D> {
         this.applySoftDeleteFilter(query);
 
         const filters = assignFilters({}, query, FILTERS, {});
-        const searchQuery: FilterQuery<Record<any, any>> = {
+        const searchQuery: QueryFilter<D> = {
             ...rawQuery(query),
             _id: id,
-        };
+        } as QueryFilter<D>;
 
         const q = this.model.findOne(searchQuery);
         const isSingleOperation = true;
-        nestify(q, filters, options, isSingleOperation);
+        nestify(q as any, filters, options, isSingleOperation);
         // @ts-expect-error - mongoose findOne return type
         return (await q.exec()) || null;
     }
 
     private _getOrFind(
         isSingleUpdate: boolean,
-        searchQuery: FilterQuery<D>,
+        searchQuery: QueryFilter<D>,
         data: UpdateQuery<M>,
     ) {
         if (isSingleUpdate) {
@@ -188,7 +188,7 @@ export class NestService<M, D> {
         user?: any,
     ): Promise<D | D[] | null> {
         query = { ...query };
-        const searchQuery: FilterQuery<Record<any, any>> = id
+        const searchQuery: QueryFilter<D> = id
             ? { _id: id, ...rawQuery(query) }
             : rawQuery(query);
 
@@ -212,7 +212,7 @@ export class NestService<M, D> {
         return data;
     }
 
-    async getCount(filter: RootFilterQuery<D>) {
+    async getCount(filter: QueryFilter<D>) {
         return this.model.countDocuments(filter);
     }
 }
