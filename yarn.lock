@@ -2747,17 +2747,12 @@
   resolved "https://registry.yarnpkg.com/@types/mime/-/mime-1.3.5.tgz#1ef302e01cf7d2b5a0fa526790c9123bf1d06690"
   integrity sha512-/pyBZWSLD2n0dcHE3hq8s8ZvcETHtEuF+3E7XVt0Ig2nvsVQXdghHVcEkIWjy9A0wKfTn97a/PSDYohKIlnP/w==
 
-"@types/node@*":
-  version "22.14.0"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-22.14.0.tgz#d3bfa3936fef0dbacd79ea3eb17d521c628bb47e"
-  integrity sha512-Kmpl+z84ILoG+3T/zQFyAJsU6EPTmOCj8/2+83fSN6djd6I4o7uOuGIH6vq3PrjY5BGitSbFuMN18j3iknubbA==
+"@types/node@*", "@types/node@25.3.2":
+  version "25.3.2"
+  resolved "https://registry.yarnpkg.com/@types/node/-/node-25.3.2.tgz#cbc4b963e1b3503eb2bcf7c55bf48c95204918d1"
+  integrity sha512-RpV6r/ij22zRRdyBPcxDeKAzH43phWVKEjL2iksqo1Vz3CuBUrgmPpPhALKiRfU7OMCmeeO9vECBMsV0hMTG8Q==
   dependencies:
-    undici-types "~6.21.0"
-
-"@types/node@18.16.9":
-  version "18.16.9"
-  resolved "https://registry.yarnpkg.com/@types/node/-/node-18.16.9.tgz#e79416d778a8714597342bb87efb5a6e914f7a73"
-  integrity sha512-IeB32oIV4oGArLrd7znD2rkHQ6EDCM+2Sr76dJnrHwv9OHBTTM6nuDLK9bmikXzPa0ZlWMWtRGo/Uw4mrzQedA==
+    undici-types "~7.18.0"
 
 "@types/parse-json@^4.0.0":
   version "4.0.2"
@@ -8866,10 +8861,10 @@ uint8array-extras@^1.4.0:
   resolved "https://registry.yarnpkg.com/uint8array-extras/-/uint8array-extras-1.5.0.tgz#10d2a85213de3ada304fea1c454f635c73839e86"
   integrity sha512-rvKSBiC5zqCCiDZ9kAOszZcDvdAHwwIKJG33Ykj43OKcWsnmcBRL09YTU4nOeHZ8Y2a7l1MgTd08SBe9A8Qj6A==
 
-undici-types@~6.21.0:
-  version "6.21.0"
-  resolved "https://registry.yarnpkg.com/undici-types/-/undici-types-6.21.0.tgz#691d00af3909be93a7faa13be61b3a5b50ef12cb"
-  integrity sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==
+undici-types@~7.18.0:
+  version "7.18.2"
+  resolved "https://registry.yarnpkg.com/undici-types/-/undici-types-7.18.2.tgz#29357a89e7b7ca4aef3bf0fd3fd0cd73884229e9"
+  integrity sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==
 
 unicode-canonical-property-names-ecmascript@^2.0.0:
   version "2.0.1"
