@@ -1,7 +1,7 @@
 
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import * as chalk from 'chalk';
+import chalk from 'chalk';
 
 export async function updateAppModule(Name: string, name: string): Promise<void> {
     const appModulePath = path.join(process.cwd(), 'src/app.module.ts');
