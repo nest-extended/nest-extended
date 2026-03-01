@@ -1,6 +1,6 @@
 {
   "name": "@nest-extended/mongoose",
-  "version": "0.0.2-beta-7",
+  "version": "0.0.2-beta-8",
   "private": false,
   "type": "commonjs",
   "contributors": [
@@ -19,7 +19,7 @@
   "types": "./src/index.d.ts",
   "dependencies": {
     "tslib": "^2.3.0",
-    "@nest-extended/core": "0.0.2-beta-7",
+    "@nest-extended/core": "0.0.2-beta-8",
     "zod": "^3.22.4"
   }
 }
