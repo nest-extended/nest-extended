@@ -3,9 +3,16 @@
   "version": "0.0.2-beta-7",
   "license": "MIT",
   "private": true,
-  "author": [
+  "contributors": [
     {
-      "name": "zakhaev26"
+      "name": "Soubhik Kumar Gon",
+      "email": "soubhikgon2004@gmail.com",
+      "url": "https://github.com/zakhaev26"
+    },
+    {
+      "name": "Santanu Prasad Sahoo",
+      "email": "sahoosantanu92@gmail.com",
+      "url": "https://github.com/santanup"
     }
   ],
   "dependencies": {
