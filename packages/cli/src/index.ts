@@ -5,7 +5,7 @@ import { migrationCommand } from './commands/migration';
 
 const program = new Command();
 
-import chalk from 'chalk';
+import * as chalk from 'chalk';
 
 const pkg = require('../package.json');
 
