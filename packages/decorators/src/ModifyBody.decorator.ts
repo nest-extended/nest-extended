@@ -5,7 +5,7 @@ declare type Request = {
     user: any;
 } & ExRequest;
 
-declare type ModifyBodyFn = (request: Request) => Request;
+export declare type ModifyBodyFn = (request: Request) => Request;
 
 export const setCreatedBy =
     (key = 'createdBy'): ModifyBodyFn =>
