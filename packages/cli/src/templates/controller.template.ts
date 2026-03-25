@@ -1,5 +1,5 @@
 
-export const getController = (Name: string, name: string, url: string): string => `import {
+export const getController = (Name: string, name: string, url: string, depth: string = '../../', fullPath: string = name): string => `import {
   Controller,
   Delete,
   Get,
@@ -10,7 +10,7 @@ export const getController = (Name: string, name: string, url: string): string =
 } from '@nestjs/common';
 import { ${Name}Service } from './${name}.service';
 import { User, ModifyBody, setCreatedBy } from '@nest-extended/decorators';
-import { ${Name} } from '../../schemas/${name}.schema';
+import { ${Name} } from '${depth}schemas/${fullPath}.schema';
 
 @Controller('${url}')
 export class ${Name}Controller {

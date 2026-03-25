@@ -1,5 +1,5 @@
 
-export const getSchema = (Name: string, UserEntity: string = 'Users', isAuthGenerated: boolean = true): string => {
+export const getSchema = (Name: string, UserEntity: string = 'Users', isAuthGenerated: boolean = true, dirPath: string = ''): string => {
   const authFields = isAuthGenerated ? `
   @Prop({
     type: Types.ObjectId,
@@ -23,9 +23,14 @@ export const getSchema = (Name: string, UserEntity: string = 'Users', isAuthGene
   deletedBy?: Types.ObjectId;
 ` : '';
 
+  // Calculate schema depth correctly from schemas folder rather than services folder
+  // For `src/schemas/qna/category.schema.ts`, dirPath is `qna`, depth is `../`
+  const schemaDepth = dirPath ? dirPath.split('/').map(() => '../').join('') : './';
+  const relativeUserPath = schemaDepth + 'users.schema';
+
   return `import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
-import { ${UserEntity} } from './users.schema';
+import { ${UserEntity} } from '${relativeUserPath}';
 import { EnsureObjectId } from '@nest-extended/mongoose';
 
 export type ${Name}Document = HydratedDocument<${Name}>;

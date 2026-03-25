@@ -1,9 +1,9 @@
 
-export const getModule = (Name: string, name: string): string => `import { Module } from '@nestjs/common';
+export const getModule = (Name: string, name: string, fullPath: string = name, depth: string = '../../'): string => `import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ${Name}Controller } from './${name}.controller';
 import { ${Name}Service } from './${name}.service';
-import { ${Name}, ${Name}Schema } from '../../schemas/${name}.schema';
+import { ${Name}, ${Name}Schema } from '${depth}schemas/${fullPath}.schema';
 
 @Module({
   imports: [

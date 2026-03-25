@@ -177,7 +177,7 @@ export class NestService<M, D> {
         data: UpdateQuery<M>,
     ) {
         if (isSingleUpdate) {
-            return this.model.findOneAndUpdate(searchQuery, data, { new: true });
+            return this.model.findOneAndUpdate(searchQuery, data, { returnDocument: 'after' });
         }
         return this.model.updateMany(searchQuery, data);
     }

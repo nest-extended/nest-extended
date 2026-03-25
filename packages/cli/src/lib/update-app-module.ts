@@ -3,7 +3,7 @@ import * as fs from 'fs-extra';
 import * as path from 'path';
 import * as chalk from 'chalk';
 
-export async function updateAppModule(Name: string, name: string): Promise<void> {
+export async function updateAppModule(Name: string, name: string, fullPath: string = name): Promise<void> {
     const appModulePath = path.join(process.cwd(), 'src/app.module.ts');
 
     try {
@@ -30,7 +30,7 @@ export async function updateAppModule(Name: string, name: string): Promise<void>
         }
 
         // Create the new import statement
-        const newImport = `import { ${Name}Module } from './services/${name}/${name}.module';`;
+        const newImport = `import { ${Name}Module } from './services/${fullPath}/${name}.module';`;
 
         if (lastImportMatch) {
             // Insert after the last service module import
