@@ -243,23 +243,28 @@ export class CatsController {
 
 ---
 
-## Workspace Summary
+## AI Agent Skills
 
-To add the AI agent skills for this repository, run:
+Give your AI agent (Claude Code, Antigravity, Copilot, etc.) full knowledge of the NestExtended ecosystem:
+
 ```bash
-npx skills add https://github.com/nest-extended/nest-extended/skills --skill nest-extended
+npx skills add nest-extended/nest-extended
 ```
 
-For information regarding the workspace mechanics and packages:
-- **[skills.md](skills.md)**: Documentation of the monorepo structure and comprehensive details of every package.
-- **[AGENT_CONTEXT.md](AGENT_CONTEXT.md)**: A high-level prompt summary file to instantly ingest the project architecture in any new session.
+This installs the [`skills.md`](skills.md) skill which provides comprehensive package documentation, CLI commands, query parameters, and usage patterns.
+
+For detailed file-level reference, see [`AGENT_CONTEXT.md`](AGENT_CONTEXT.md) — a single-file context that covers every export, every template, and every source file location.
+
+**GitHub**: [github.com/nest-extended/nest-extended](https://github.com/nest-extended/nest-extended)
+
+---
 
 ## Getting Started
 
 ### Installation
 
 ```bash
-yarn add @nest-extended/core @nest-extended/mongoose
+yarn add @nest-extended/core @nest-extended/mongoose @nest-extended/decorators
 yarn add -D @nest-extended/cli
 ```
 
@@ -278,7 +283,7 @@ This will generate a full set of files (Service, Controller, Module, Schema, DTO
 Use the CLI to generate an entire pre-configured NestJS application:
 
 ```bash
-nestx-cli g app my-app
+nest-cli g app my-app
 ```
 
 This will scaffold a new NestJS generic application complete with Mongoose integration, `nestjs-cls` context mapping, soft-delete configuration, and an interactive prompt to optionally generate user/JWT authentication modules (`Users` and `Auth` services).
