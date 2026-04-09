@@ -18,12 +18,29 @@ export interface SoftDeleteConfig {
     getData: (user: any) => Record<string, any>;
 }
 
+export interface QueryParserConfig {
+    /** Maximum depth for nested objects. Default: 20 */
+    depth?: number;
+    /** Maximum number of array elements. Default: 100 */
+    arrayLimit?: number;
+    /** Allow dot notation in query keys. Default: false */
+    allowDots?: boolean;
+}
+
 export interface NestExtendedConfig {
     /**
      * Soft delete configuration.
      * If not provided, default soft delete behavior is used.
      */
     softDelete?: SoftDeleteConfig;
+
+    /**
+     * Query parser configuration using `qs`.
+     * - `true` or `undefined` (default): enables qs with defaults (depth: 20, arrayLimit: 100, allowDots: false)
+     * - `QueryParserConfig` object: enables qs with custom options
+     * - `false`: disables the qs query parser (uses Express default)
+     */
+    queryParser?: QueryParserConfig | boolean;
 }
 
 /**

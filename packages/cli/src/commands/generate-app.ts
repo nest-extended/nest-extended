@@ -24,6 +24,13 @@ export const generateAppAction = async (appName: string) => {
             choices: ['mongoose', 'sqlite', 'prisma'],
         },
         {
+            type: 'list',
+            name: 'validatorType',
+            message: 'Which validation library would you like to use?',
+            choices: ['zod', 'class-validator'],
+            default: 'zod',
+        },
+        {
             type: 'confirm',
             name: 'generateAuth',
             message: 'Would you like to generate authentication (Users and Auth services)?',
@@ -35,6 +42,7 @@ export const generateAppAction = async (appName: string) => {
     const answers = await inquirer.prompt(questions);
     const database = answers['database'];
     const pkgManager = answers['pkgManager'];
+    const validatorType = answers['validatorType'];
     const generateAuth = answers['generateAuth'];
 
     if (database === 'sqlite' || database === 'prisma') {
@@ -74,8 +82,12 @@ export const generateAppAction = async (appName: string) => {
             `@nest-extended/core@${nestExtendedVersion}`,
             `@nest-extended/mongoose@${nestExtendedVersion}`,
             `@nest-extended/decorators@${nestExtendedVersion}`,
-            'zod'
         ];
+        if (validatorType === 'zod') {
+            baseDeps.push('zod');
+        } else {
+            baseDeps.push('class-validator', 'class-transformer');
+        }
         if (generateAuth) {
             baseDeps.push('@nestjs/jwt', 'bcrypt');
         }

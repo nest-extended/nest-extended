@@ -82,7 +82,7 @@ These are all the README files in the repository. Read these for detailed featur
 
 **Path**: `packages/core/`
 **NPM**: `@nest-extended/core`
-**Dependencies**: `tslib`, `@nest-extended/decorators` (peer), `nestjs-cls` (peer), `@nestjs/common` (peer)
+**Dependencies**: `tslib`, `qs`, `@nest-extended/decorators` (peer), `nestjs-cls` (peer), `@nestjs/common` (peer)
 
 #### Source Layout
 
@@ -100,7 +100,7 @@ packages/core/src/
 ├── interceptors/
 │   └── null-response.interceptor.ts  ← NullResponseInterceptor
 └── types/
-    ├── nest-extended.config.ts       ← NestExtendedConfig, SoftDeleteConfig, NEST_EXTENDED_CONFIG
+    ├── nest-extended.config.ts       ← NestExtendedConfig, SoftDeleteConfig, QueryParserConfig, NEST_EXTENDED_CONFIG
     ├── ServiceOptions.ts             ← ServiceOptions<T>, NestServiceOptions
     ├── PaginatedResponse.ts          ← PaginatedResponse<D>
     └── RequestBody.ts                ← Re-export of RequestBody from decorators
@@ -111,13 +111,14 @@ packages/core/src/
 | Export | Kind | Description |
 |---|---|---|
 | `NestController<T>` | Class | Generic CRUD controller with `find`, `get`, `create`, `patch`, `delete` endpoints. Auto-applies `@Public()` on `find`, `@ModifyBody(setCreatedBy())` on `create`, `@User()` on `delete`. |
-| `NestExtendedModule` | Module | Dynamic module — `NestExtendedModule.forRoot(config)` provides global `NEST_EXTENDED_CONFIG`. |
+| `NestExtendedModule` | Module | Dynamic module — `NestExtendedModule.forRoot(config)` provides global `NEST_EXTENDED_CONFIG`. Auto-configures `qs` query parser on bootstrap. |
 | `options` | Object | Defaults: `deleteKey='deleted'`, `defaultPagination=true`, `defaultLimit=20`, `defaultSkip=0`, `multi=false`. |
 | `getCurrentUser<T>()` | Function | Retrieve authenticated user from CLS context. Returns `undefined` if unavailable. |
 | `CLS_KEYS` | Const | `{ USER: 'user' }` — CLS storage keys. |
 | `NullResponseInterceptor` | Interceptor | Throws `NotFoundException` when GET handlers return `null`/`undefined`. |
-| `NestExtendedConfig` | Interface | `{ softDelete?: SoftDeleteConfig }` |
+| `NestExtendedConfig` | Interface | `{ softDelete?: SoftDeleteConfig, queryParser?: QueryParserConfig \| boolean }` |
 | `SoftDeleteConfig` | Interface | `{ getQuery: () => Record, getData: (user) => Record }` |
+| `QueryParserConfig` | Interface | `{ depth?: number, arrayLimit?: number, allowDots?: boolean }` — defaults: 20, 100, false |
 | `NEST_EXTENDED_CONFIG` | Symbol | Injection token for `NestExtendedConfig`. |
 | `ServiceOptions<T>` | Interface | Contract: `_find`, `_get`, `_create`, `_patch`, `_remove`. |
 | `NestServiceOptions` | Type | `{ multi?: boolean, softDelete?: boolean, pagination?: boolean }` |
@@ -254,6 +255,7 @@ packages/cli/src/
     ├── controller.template.ts       ← Controller with CRUD + decorators
     ├── schema.template.ts           ← Mongoose schema with soft delete + auth fields
     ├── dto.template.ts              ← Zod validation schemas (Create, Patch, Remove)
+    ├── dto-class-validator.template.ts ← class-validator DTOs (Create, Patch, Remove)
     ├── service.spec.template.ts     ← Service unit test
     ├── controller.spec.template.ts  ← Controller unit test
     ├── auth.template.ts             ← Auth module/service/controller/guard/constants
@@ -275,8 +277,9 @@ packages/cli/src/
 
 When generating a new app, the CLI:
 1. Runs `nest new` via `@nestjs/cli`
-2. Installs: `@nestjs/mongoose`, `mongoose`, `@nestjs/config`, `nestjs-cls`, `@nest-extended/core`, `@nest-extended/mongoose`, `@nest-extended/decorators`, `zod`
-3. Optionally installs: `@nestjs/jwt`, `bcrypt`, `@types/bcrypt`
+2. Prompts for validation library: `zod` or `class-validator`
+3. Installs: `@nestjs/mongoose`, `mongoose`, `@nestjs/config`, `nestjs-cls`, `@nest-extended/core`, `@nest-extended/mongoose`, `@nest-extended/decorators`, and the selected validator (`zod` or `class-validator` + `class-transformer`)
+4. Optionally installs: `@nestjs/jwt`, `bcrypt`, `@types/bcrypt`
 4. Configures `app.module.ts` with:
    - `ConfigModule.forRoot()` (global, reads `.env`)
    - `ClsModule.forRoot()` (global, middleware mount)
@@ -306,17 +309,25 @@ When generating a new app, the CLI:
 
 For `nest-cli g service <name>` (e.g., `user-profile` → `UserProfile`):
 
+1. Prompts for validation library: `zod` or `class-validator`
+2. Checks if the selected validator packages are installed; auto-installs if missing
+3. Generates the following files:
+
 | File | Description |
 |---|---|
-| `src/schemas/<name>.schema.ts` | Mongoose schema with timestamps, soft delete fields, optional auth fields |
+| `src/schemas/<name>.schema.ts` | Mongoose schema with timestamps, soft delete fields (`select: false` on `deleted`, `deletedAt`, `deletedBy`, `updatedBy`), optional auth fields |
 | `src/services/<name>/<name>.module.ts` | Module with MongooseModule.forFeature |
 | `src/services/<name>/<name>.service.ts` | NestService extension |
 | `src/services/<name>/<name>.controller.ts` | Full CRUD controller with decorators |
-| `src/services/<name>/dto/<name>.dto.ts` | Zod validations (Create, Patch, Remove + inferred TS types) |
+| `src/services/<name>/dto/<name>.dto.ts` | Zod validations or class-validator DTOs (based on user selection) |
 | `src/services/<name>/<name>.service.spec.ts` | Service unit test |
 | `src/services/<name>/<name>.controller.spec.ts` | Controller unit test |
 
 **Nested paths supported**: `nest-cli g service qna/category` → `src/services/qna/category/`
+
+**Validator selection**: Prompts user to choose `zod` or `class-validator`. Auto-detects package manager (yarn/npm/pnpm) and installs missing packages.
+
+**Schema `select: false`**: Fields `deleted`, `deletedAt`, `deletedBy`, and `updatedBy` are generated with `select: false` to exclude them from queries by default.
 
 #### `m run` — Migration
 
@@ -482,6 +493,9 @@ The `release.js` script:
 4. **Template awareness** — when modifying CLI templates, understand that they generate code strings (not actual source files in this repo).
 5. **Soft delete is ON by default** — `NestService` defaults to `softDelete: true`. All queries auto-filter deleted documents.
 6. **Auth-aware templates** — the `g service` command checks if `src/services/auth/` exists to decide whether to include `createdBy`/`updatedBy`/`deletedBy` fields.
+10. **Query parser is auto-configured** — `NestExtendedModule.forRoot()` automatically sets up `qs` as the Express query parser (depth: 20, arrayLimit: 100). Disable with `queryParser: false`.
+11. **Validator selection** — `g service` and `g app` prompt for `zod` or `class-validator`. Missing packages are auto-installed.
+12. **Schema select: false** — generated schemas use `select: false` on `deleted`, `deletedAt`, `deletedBy`, `updatedBy` to hide soft-delete/audit fields from default queries.
 7. **Build before publish** — always run `yarn nx run-many -t build` to verify changes compile.
 8. **Version sync** — use `node scripts/release.js <ver>` to keep all package versions in sync.
 9. **Read the README files** — for detailed API docs, reference the README paths listed in Section 3.

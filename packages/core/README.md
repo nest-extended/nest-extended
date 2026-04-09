@@ -5,15 +5,16 @@ This package provides the core building blocks for NestJS applications built wit
 ## Key Features
 
 - **Generic Controller (`NestController`)**: A base controller class that handles common CRUD operations (`find`, `get`, `create`, `patch`, `delete`) by delegating to a service implementing `ServiceOptions`. Auto-wires `@Public()`, `@ModifyBody(setCreatedBy())`, and `@User()` decorators.
-- **Dynamic Module (`NestExtendedModule`)**: A global dynamic module configured via `NestExtendedModule.forRoot(config)` that provides app-wide soft delete configuration. Injects `NEST_EXTENDED_CONFIG` token.
+- **Dynamic Module (`NestExtendedModule`)**: A global dynamic module configured via `NestExtendedModule.forRoot(config)` that provides app-wide soft delete configuration and automatic `qs` query parser setup. Injects `NEST_EXTENDED_CONFIG` token.
 - **CLS Helpers**: Utilities for `nestjs-cls` (Continuation Local Storage):
     - `getCurrentUser<T>()` — retrieve the authenticated user from CLS context (set by AuthGuard).
     - `CLS_KEYS.USER` — constant for the CLS user key.
 - **Interceptors**:
     - `NullResponseInterceptor` — throws `NotFoundException` on `null`/`undefined` GET responses.
 - **Configuration Types**:
-    - `NestExtendedConfig` — root config with `softDelete` settings.
+    - `NestExtendedConfig` — root config with `softDelete` and `queryParser` settings.
     - `SoftDeleteConfig` — `getQuery()` and `getData(user)` for soft delete behavior.
+    - `QueryParserConfig` — `depth`, `arrayLimit`, `allowDots` for `qs` query parser.
     - `NEST_EXTENDED_CONFIG` — injection token (`Symbol`).
 - **Type Interfaces**:
     - `ServiceOptions<T>` — interface for `_find`, `_get`, `_create`, `_patch`, `_remove`.
@@ -28,7 +29,7 @@ This package provides the core building blocks for NestJS applications built wit
 
 ### NestExtendedModule
 
-Configure soft delete behavior globally:
+Configure soft delete behavior and query parser globally:
 
 ```typescript
 import { NestExtendedModule } from '@nest-extended/core';
@@ -44,11 +45,29 @@ import { NestExtendedModule } from '@nest-extended/core';
           deletedAt: new Date(),
         }),
       },
+      // Query parser is enabled by default with qs (depth: 20, arrayLimit: 100)
+      // Customize or disable:
+      // queryParser: { depth: 10, arrayLimit: 50, allowDots: true },
+      // queryParser: false, // disable qs, use Express default
     }),
   ],
 })
 export class AppModule {}
 ```
+
+#### Query Parser
+
+The module automatically configures `qs` as the Express query parser on application bootstrap. This enables proper parsing of deeply nested query objects and arrays (required by `@nest-extended/mongoose` query features like `$populate`, `$sort`, etc.).
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `depth` | `number` | `20` | Maximum nesting depth for query objects |
+| `arrayLimit` | `number` | `100` | Maximum number of array elements |
+| `allowDots` | `boolean` | `false` | Allow dot notation in query keys |
+
+- **Enabled by default**: No configuration needed — just use `NestExtendedModule.forRoot()`.
+- **Custom options**: Pass a `QueryParserConfig` object to `queryParser`.
+- **Disable**: Set `queryParser: false` to use Express's default query parser.
 
 ### NestController
 
@@ -109,6 +128,7 @@ import { User, Public, ModifyBody, setCreatedBy } from '@nest-extended/decorator
 | `NullResponseInterceptor` | Interceptor | 404 on null GET responses |
 | `NestExtendedConfig` | Interface | Root configuration type |
 | `SoftDeleteConfig` | Interface | Soft delete config type |
+| `QueryParserConfig` | Interface | Query parser options (depth, arrayLimit, allowDots) |
 | `NEST_EXTENDED_CONFIG` | Symbol | DI injection token |
 | `ServiceOptions<T>` | Interface | Service method contract |
 | `NestServiceOptions` | Type | Service behavior options |

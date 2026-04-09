@@ -11,14 +11,16 @@ export const getSchema = (Name: string, UserEntity: string = 'Users', isAuthGene
   @Prop({
     type: Types.ObjectId,
     ref: ${UserEntity}.name,
-    default: null
+    default: null,
+    select: false,
   })
   updatedBy?: Types.ObjectId;
 
   @Prop({
     type: Types.ObjectId,
     ref: ${UserEntity}.name,
-    default: null
+    default: null,
+    select: false,
   })
   deletedBy?: Types.ObjectId;
 ` : '';
@@ -44,13 +46,15 @@ export class ${Name} {
   ${authFields}
   @Prop({
     type: Boolean,
-    default: null
+    default: null,
+    select: false,
   })
   deleted?: Boolean;
 
   @Prop({
     type: Date,
-    default: null
+    default: null,
+    select: false,
   })
   deletedAt?: Date;
 

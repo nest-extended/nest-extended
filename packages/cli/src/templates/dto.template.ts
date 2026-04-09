@@ -2,6 +2,25 @@
 export const getDto = (Name: string): string => `import { z } from 'zod';
 import { Types } from 'mongoose';
 
+/**
+ * Usage: To enable Zod validation, create a ZodValidationPipe and apply it globally or per-route.
+ *
+ *   // zod-validation.pipe.ts
+ *   import { PipeTransform, BadRequestException } from '@nestjs/common';
+ *   import { ZodSchema } from 'zod';
+ *   export class ZodValidationPipe implements PipeTransform {
+ *     constructor(private schema: ZodSchema) {}
+ *     transform(value: unknown) {
+ *       const result = this.schema.safeParse(value);
+ *       if (!result.success) throw new BadRequestException(result.error);
+ *       return result.data;
+ *     }
+ *   }
+ *
+ *   // Then in your controller:
+ *   @UsePipes(new ZodValidationPipe(Create${Name}Validation))
+ */
+
 export const Create${Name}Validation = z.object({
   name: z.string().optional(),
   createdBy: z

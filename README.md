@@ -42,7 +42,7 @@ yarn add -D @nest-extended/cli
 ##### Generate Application (`g app`)
 
 Generates a fully configured NestJS application with standard best-practices built right in.
-It interactively prompts for your choice of database (currently supporting MongoDB) and handles scaffolding the app. It also prompts whether you want to automatically generate authentication modules.
+It interactively prompts for your choice of database (currently supporting MongoDB), validation library (`zod` or `class-validator`), and handles scaffolding the app. It also prompts whether you want to automatically generate authentication modules.
 
 **Includes:**
 - Running `@nestjs/cli`'s `nest new` command internally
@@ -50,7 +50,8 @@ It interactively prompts for your choice of database (currently supporting Mongo
 - Context-mapping out of the box using `nestjs-cls`
 - Built-in `AuthModule` with JSON Web Token (JWT) handling via `@nestjs/jwt` and password hashing with `bcrypt` (opt-in)
 - Fully functional `UsersModule` equipped with standard fields and authentication logic implementations. (opt-in)
-- Pre-configured `NestExtendedModule` context for soft deletes functionality
+- Pre-configured `NestExtendedModule` context for soft deletes and automatic `qs` query parser
+- Validation library choice: `zod` or `class-validator` + `class-transformer` (user selects during generation)
 
 **Usage:**
 
@@ -85,8 +86,12 @@ Generates a complete resource bundle including:
 - **Service**: Extends `NestService` from `@nest-extended/mongoose`.
 - **Controller**: Extends `NestController` from `@nest-extended/core`.
 - **Schema**: Mongoose schema with `timestamps` and soft delete fields (only injects `createdBy`, `updatedBy`, `deletedBy` mapping if Auth was generated).
-- **DTO**: Data Transfer Object with validation.
+- **DTO**: Data Transfer Object with validation (Zod or class-validator, user selects during generation).
 - **Specs**: Unit tests for service and controller.
+
+The CLI prompts for the validation library and auto-installs missing packages (`zod` or `class-validator` + `class-transformer`).
+
+Generated schemas use `select: false` on soft-delete/audit fields (`deleted`, `deletedAt`, `deletedBy`, `updatedBy`) to exclude them from queries by default.
 
 It also automatically updates your `src/app.module.ts` to include the new module.
 
@@ -126,6 +131,7 @@ This package provides the core building blocks for NestJS applications built wit
     - `@User()`
     - `@Public()`
     - `@ModifyBody()`
+- **Query Parser**: Auto-configures `qs` as the Express query parser (depth: 20, arrayLimit: 100) via `NestExtendedModule.forRoot()`. Configurable or disable with `queryParser: false`.
 
 #### Usage
 
