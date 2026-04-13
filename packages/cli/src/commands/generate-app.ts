@@ -7,6 +7,8 @@ import { getModule } from '../templates/module.template';
 import { getController } from '../templates/controller.template';
 import { getDto } from '../templates/dto.template';
 import { generateAuthServices } from '../lib/generate-auth-services';
+import { generatePrismaAuthServices } from '../lib/generate-prisma-auth-services';
+import { getPrismaServiceFile, getPrismaModuleFile } from '../templates/prisma-setup.template';
 
 export const generateAppAction = async (appName: string) => {
     const questions = [
@@ -21,7 +23,8 @@ export const generateAppAction = async (appName: string) => {
             type: 'list',
             name: 'database',
             message: 'Which database would you like to use?',
-            choices: ['mongoose', 'sqlite', 'prisma'],
+            choices: ['Mongoose', 'PostgreSQL', 'MySQL', 'SQLite'],
+            default: 'Mongoose',
         },
         {
             type: 'list',
@@ -45,12 +48,9 @@ export const generateAppAction = async (appName: string) => {
     const validatorType = answers['validatorType'];
     const generateAuth = answers['generateAuth'];
 
-    if (database === 'sqlite' || database === 'prisma') {
-        console.error(chalk.red(`Error: We are not supporting ${database} now`));
-        process.exit(1);
-    }
+    const isPrisma = database !== 'Mongoose';
 
-    console.log(chalk.blue(`Generating NestJS app: ${appName}`));
+    console.log(chalk.blue(`Generating NestJS app: ${appName} with ${database}`));
 
     const appDir = path.join(process.cwd(), appName);
 
@@ -75,14 +75,25 @@ export const generateAppAction = async (appName: string) => {
     await new Promise<void>((resolve, reject) => {
         const installArgs = pkgManager === 'npm' ? ['install'] : ['add'];
         const baseDeps = [
-            '@nestjs/mongoose',
-            'mongoose',
             '@nestjs/config',
             'nestjs-cls',
             `@nest-extended/core@${nestExtendedVersion}`,
-            `@nest-extended/mongoose@${nestExtendedVersion}`,
             `@nest-extended/decorators@${nestExtendedVersion}`,
         ];
+
+        if (isPrisma) {
+            baseDeps.push(
+                '@prisma/client',
+                `@nest-extended/prisma@${nestExtendedVersion}`,
+            );
+        } else {
+            baseDeps.push(
+                '@nestjs/mongoose',
+                'mongoose',
+                `@nest-extended/mongoose@${nestExtendedVersion}`,
+            );
+        }
+
         if (validatorType === 'zod') {
             baseDeps.push('zod');
         } else {
@@ -111,10 +122,14 @@ export const generateAppAction = async (appName: string) => {
     });
 
     // 3. Install Dev dependencies
-    if (generateAuth) {
+    const devDeps: string[] = [];
+    if (generateAuth) devDeps.push('@types/bcrypt');
+    if (isPrisma) devDeps.push('prisma');
+
+    if (devDeps.length > 0) {
         await new Promise<void>((resolve, reject) => {
             const devArgs = pkgManager === 'npm' ? ['install', '-D'] : ['add', '-D'];
-            const child = spawn(pkgManager, [...devArgs, '@types/bcrypt'], {
+            const child = spawn(pkgManager, [...devArgs, ...devDeps], {
                 stdio: 'inherit',
                 cwd: appDir,
                 shell: true,
@@ -128,14 +143,116 @@ export const generateAppAction = async (appName: string) => {
 
     console.log(chalk.blue('Configuring project...'));
 
-    // 4. Update app.module.ts
-    const appModulePath = path.join(appDir, 'src/app.module.ts');
-    let appModuleContent = fs.readFileSync(appModulePath, 'utf8');
+    if (isPrisma) {
+        // --- Prisma-based app setup ---
 
-    const authImports = generateAuth ? `
+        // Initialize Prisma
+        let datasourceProvider = 'postgresql';
+        if (database === 'MySQL') datasourceProvider = 'mysql';
+        else if (database === 'SQLite') datasourceProvider = 'sqlite';
+
+        await new Promise<void>((resolve, reject) => {
+            const child = spawn('npx', ['prisma', 'init', '--datasource-provider', datasourceProvider], {
+                stdio: 'inherit',
+                cwd: appDir,
+                shell: true,
+            });
+            child.on('close', (code) => {
+                if (code === 0) resolve();
+                else reject(new Error(`prisma init failed with code ${code}`));
+            });
+        });
+
+        // Create PrismaService and PrismaModule
+        const prismaDir = path.join(appDir, 'src/prisma');
+        fs.ensureDirSync(prismaDir);
+        fs.writeFileSync(path.join(prismaDir, 'prisma.service.ts'), getPrismaServiceFile());
+        fs.writeFileSync(path.join(prismaDir, 'prisma.module.ts'), getPrismaModuleFile());
+
+        // Update app.module.ts for Prisma
+        const appModulePath = path.join(appDir, 'src/app.module.ts');
+        let appModuleContent = fs.readFileSync(appModulePath, 'utf8');
+
+        const authImports = generateAuth ? `
 import { AuthModule } from './services/auth/auth.module';
 import { UsersModule } from './services/users/users.module';` : '';
-    const importsToAdd = `
+        const importsToAdd = `
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { GlobalExceptionFilter } from '@nest-extended/prisma';
+import { ConfigModule } from '@nestjs/config';
+import { ClsModule } from 'nestjs-cls';
+import { NestExtendedModule, NullResponseInterceptor } from '@nest-extended/core';
+import { PrismaModule } from './prisma/prisma.module';${authImports}
+`;
+        appModuleContent = importsToAdd + appModuleContent;
+
+        const deletedByProp = generateAuth ? `
+          deletedBy: user?.id,` : '';
+        const authModuleImports = generateAuth ? `
+    AuthModule,
+    UsersModule,` : '';
+
+        const nestImports = `
+    ConfigModule.forRoot({
+      envFilePath: ['.env'],
+      isGlobal: true,
+    }),
+    ClsModule.forRoot({
+      global: true,
+      middleware: { mount: true },
+    }),
+    NestExtendedModule.forRoot({
+      softDelete: {
+        getQuery: () => ({ deleted: { not: true } }),
+        getData: (user: { id?: string } | null) => ({
+          deleted: true,${deletedByProp}
+          deletedAt: new Date(),
+        }),
+      },
+    }),
+    PrismaModule,${authModuleImports}`;
+
+        appModuleContent = appModuleContent.replace(/imports:\s*\[/, `imports: [\n${nestImports}`);
+
+        const appProviders = `providers: [
+    AppService,
+    {
+      provide: APP_FILTER,
+      useClass: GlobalExceptionFilter,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: NullResponseInterceptor,
+    },
+  ],`;
+        appModuleContent = appModuleContent.replace(/providers:\s*\[AppService\],?/, appProviders);
+
+        fs.writeFileSync(appModulePath, appModuleContent);
+
+        // Write .env file
+        let databaseUrl = 'postgresql://user:password@localhost:5432/mydb?schema=public';
+        if (database === 'MySQL') databaseUrl = 'mysql://user:password@localhost:3306/mydb';
+        else if (database === 'SQLite') databaseUrl = 'file:./dev.db';
+
+        fs.writeFileSync(path.join(appDir, '.env'), `DATABASE_URL="${databaseUrl}"
+JWT_SECRET=super-secret-jwt-key
+`);
+
+        if (generateAuth) {
+            generatePrismaAuthServices(appDir);
+        }
+
+    } else {
+        // --- Mongoose-based app setup (existing behavior) ---
+
+        // 4. Update app.module.ts
+        const appModulePath = path.join(appDir, 'src/app.module.ts');
+        let appModuleContent = fs.readFileSync(appModulePath, 'utf8');
+
+        const authImports = generateAuth ? `
+import { AuthModule } from './services/auth/auth.module';
+import { UsersModule } from './services/users/users.module';` : '';
+        const importsToAdd = `
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { GlobalExceptionFilter } from '@nest-extended/mongoose';
 import { ConfigModule } from '@nestjs/config';
@@ -143,15 +260,15 @@ import { ClsModule } from 'nestjs-cls';
 import { NestExtendedModule, NullResponseInterceptor } from '@nest-extended/core';
 import { MongooseModule } from '@nestjs/mongoose';${authImports}
 `;
-    appModuleContent = importsToAdd + appModuleContent;
+        appModuleContent = importsToAdd + appModuleContent;
 
-    const deletedByProp = generateAuth ? `
+        const deletedByProp = generateAuth ? `
           deletedBy: user?._id,` : '';
-    const authModuleImports = generateAuth ? `
+        const authModuleImports = generateAuth ? `
     AuthModule,
     UsersModule,` : '';
 
-    const nestImports = `
+        const nestImports = `
     ConfigModule.forRoot({
       envFilePath: ['.env'],
       isGlobal: true,
@@ -171,10 +288,9 @@ import { MongooseModule } from '@nestjs/mongoose';${authImports}
     }),
     MongooseModule.forRoot(process.env.MONGODB_URI || 'mongodb://localhost:27017/test'),${authModuleImports}`;
 
-    appModuleContent = appModuleContent.replace(/imports:\s*\[/, `imports: [
-${nestImports}`);
+        appModuleContent = appModuleContent.replace(/imports:\s*\[/, `imports: [\n${nestImports}`);
 
-    const appProviders = `providers: [
+        const appProviders = `providers: [
     AppService,
     {
       provide: APP_FILTER,
@@ -185,17 +301,18 @@ ${nestImports}`);
       useClass: NullResponseInterceptor,
     },
   ],`;
-    appModuleContent = appModuleContent.replace(/providers:\s*\[AppService\],?/, appProviders);
+        appModuleContent = appModuleContent.replace(/providers:\s*\[AppService\],?/, appProviders);
 
-    fs.writeFileSync(appModulePath, appModuleContent);
+        fs.writeFileSync(appModulePath, appModuleContent);
 
-    // Write .env file
-    fs.writeFileSync(path.join(appDir, '.env'), `MONGODB_URI=mongodb://localhost:27017/test
+        // Write .env file
+        fs.writeFileSync(path.join(appDir, '.env'), `MONGODB_URI=mongodb://localhost:27017/test
 JWT_SECRET=super-secret-jwt-key
 `);
 
-    if (generateAuth) {
-        generateAuthServices(appDir);
+        if (generateAuth) {
+            generateAuthServices(appDir);
+        }
     }
 
     console.log(chalk.blue('Running lint...'));

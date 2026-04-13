@@ -1,0 +1,19 @@
+{
+  "name": "prisma",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/prisma/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/packages/prisma",
+        "main": "packages/prisma/src/index.ts",
+        "tsConfig": "packages/prisma/tsconfig.lib.json",
+        "assets": ["packages/prisma/*.md"]
+      }
+    }
+  }
+}

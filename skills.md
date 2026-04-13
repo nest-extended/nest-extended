@@ -179,6 +179,83 @@ providers: [{ provide: APP_FILTER, useClass: GlobalExceptionFilter }]
 
 ---
 
+## Package: `@nest-extended/prisma`
+
+**Path**: `packages/prisma` | **README**: [`packages/prisma/README.md`](packages/prisma/README.md) | **NPM**: `@nest-extended/prisma`
+
+Prisma database adapter supporting **PostgreSQL**, **MySQL**, and **SQLite**. Same API as Mongoose package.
+
+### `NestService<T>` — Generic CRUD Service for Prisma
+
+| Method | Description |
+|---|---|
+| `_find(query?, findOptions?)` | Find with filters, sorting, pagination. Returns `PaginatedResponse<T>` or `T[]` |
+| `_get(id, query?)` | Find single record by primary key |
+| `_create(data)` | Create single or bulk (`multi: true` for arrays) |
+| `_patch(id, data, query?)` | Update by ID or bulk (id=null) |
+| `_remove(id, query?, user?)` | Soft/hard delete depending on config |
+| `getCount(filter)` | Count matching records |
+
+**Constructor**: `new NestService(prismaModel, serviceOptions?, softDeleteConfig?)`
+
+### Query Operators (FeathersJS-style → Prisma)
+
+| Operator | Prisma Translation |
+|---|---|
+| `$eq` | Direct equality |
+| `$ne` | `{ not: value }` |
+| `$gt/$gte/$lt/$lte` | `{ gt/gte/lt/lte: value }` |
+| `$in/$nin` | `{ in/notIn: [values] }` |
+| `$like` | `{ contains: value }` |
+| `$notLike` | `{ not: { contains: value } }` |
+| `$iLike` | `{ contains: value, mode: 'insensitive' }` (PostgreSQL) |
+| `$notILike` | `{ not: { contains: value, mode: 'insensitive' } }` |
+| `$or/$and` | `{ OR/AND: [...conditions] }` |
+
+### Special Parameters
+
+- `$sort` → `orderBy` (`1` = asc, `-1` = desc)
+- `$limit` → `take` (default: 20)
+- `$skip` → `skip` (default: 0)
+- `$select` → `select: { field: true }`
+- `$include` → `include: { relation: true }` (replaces Mongoose `$populate`)
+
+### Exception Filters
+
+- `GlobalExceptionFilter` — handles Prisma errors (P2002, P2003, P2025, etc.), Zod, and HTTP exceptions
+- `handlePrismaError(exception)` — translates Prisma error codes to human-readable messages
+
+### DB-Specific Notes
+
+| Database | `$iLike` Support | Connection URL Example |
+|---|---|---|
+| PostgreSQL | ✅ Full support | `postgresql://user:password@localhost:5432/mydb` |
+| MySQL | ⚠️ Case-insensitive by default | `mysql://user:password@localhost:3306/mydb` |
+| SQLite | ❌ No case-insensitive mode | `file:./dev.db` |
+
+### Quick Start
+
+```typescript
+// Service
+@Injectable()
+export class CatsService extends NestService<any> {
+  constructor(private readonly prisma: PrismaService) {
+    super(prisma.cat);
+  }
+}
+
+// Query with FeathersJS-style operators
+await this.catsService._find({ name: { $iLike: 'kitty' }, $sort: { createdAt: -1 }, $limit: 10 });
+
+// Eager-load relations
+await this.usersService._find({ $include: { posts: true } });
+
+// Register global exception filter
+providers: [{ provide: APP_FILTER, useClass: GlobalExceptionFilter }]
+```
+
+---
+
 ## Package: `@nest-extended/cli`
 
 **Path**: `packages/cli` | **README**: [`packages/cli/README.md`](packages/cli/README.md) | **Binary**: `nest-cli`
@@ -189,9 +266,9 @@ CLI for scaffolding NestJS apps, services, and auth modules.
 
 | Command | Alias | Description |
 |---|---|---|
-| `nest-cli generate app <name>` | `g app` | Scaffold complete NestJS app with Mongoose, CLS, soft-delete, optional JWT auth |
+| `nest-cli generate app <name>` | `g app` | Scaffold complete NestJS app with database selection (Mongoose/PostgreSQL/MySQL/SQLite), CLS, soft-delete, optional JWT auth |
 | `nest-cli generate auth` | `g auth` | Add Auth + Users modules to existing app |
-| `nest-cli generate service <name>` | `g service` | Generate resource bundle (module, service, controller, schema, DTO, specs) |
+| `nest-cli generate service <name>` | `g service` | Generate resource bundle (module, service, controller, schema/model, DTO, specs) with database selection |
 | `nest-cli migration run` | `m run` | Run migration scripts (moves decorator imports to `@nest-extended/decorators`) |
 | `nest-cli version` | `v` | Print version |
 | `nest-cli help` | — | Display help |
@@ -199,12 +276,13 @@ CLI for scaffolding NestJS apps, services, and auth modules.
 ### `g app` — What Gets Generated
 
 1. Runs `nest new` via `@nestjs/cli`
-2. Prompts for validation library: `zod` or `class-validator`
-3. Installs: `@nestjs/mongoose`, `mongoose`, `@nestjs/config`, `nestjs-cls`, `@nest-extended/*`, and selected validator (`zod` or `class-validator` + `class-transformer`)
-4. Optional: `@nestjs/jwt`, `bcrypt` (for auth)
-4. Configures `app.module.ts` with ConfigModule, ClsModule, NestExtendedModule, MongooseModule, GlobalExceptionFilter, NullResponseInterceptor
-5. Creates `.env` with `MONGODB_URI` and `JWT_SECRET`
-6. Optionally generates Auth + Users modules
+2. Prompts for database: `Mongoose`, `PostgreSQL`, `MySQL`, or `SQLite`
+3. Prompts for validation library: `zod` or `class-validator`
+4. **Mongoose**: Installs `@nestjs/mongoose`, `mongoose`, `@nest-extended/mongoose` + configures `MongooseModule`
+5. **Prisma (PostgreSQL/MySQL/SQLite)**: Installs `@prisma/client`, `prisma`, `@nest-extended/prisma` + runs `prisma init` + creates `PrismaModule`/`PrismaService`
+6. Configures `app.module.ts` with ConfigModule, ClsModule, NestExtendedModule, GlobalExceptionFilter, NullResponseInterceptor
+7. Creates `.env` with appropriate `DATABASE_URL` or `MONGODB_URI`
+8. Optionally generates Auth + Users modules (compatible with selected database)
 
 ### `g auth` — Auth Files Generated
 

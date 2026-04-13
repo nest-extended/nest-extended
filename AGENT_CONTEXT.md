@@ -54,6 +54,7 @@ nest-extended/
 ├── packages/
 │   ├── core/                 ← @nest-extended/core
 │   ├── mongoose/             ← @nest-extended/mongoose
+│   ├── prisma/               ← @nest-extended/prisma
 │   ├── cli/                  ← @nest-extended/cli
 │   └── decorators/           ← @nest-extended/decorators
 ├── .agents/                  ← Agent skills (Nx generators, workspaces, etc.)
@@ -71,6 +72,7 @@ These are all the README files in the repository. Read these for detailed featur
 | Root | [`README.md`](README.md) |
 | Core | [`packages/core/README.md`](packages/core/README.md) |
 | Mongoose | [`packages/mongoose/README.md`](packages/mongoose/README.md) |
+| Prisma | [`packages/prisma/README.md`](packages/prisma/README.md) |
 | CLI | [`packages/cli/README.md`](packages/cli/README.md) |
 | Decorators | [`packages/decorators/README.md`](packages/decorators/README.md) |
 
@@ -227,7 +229,117 @@ packages/mongoose/src/
 
 ---
 
-### 4.3 `@nest-extended/cli`
+### 4.3 `@nest-extended/prisma`
+
+**Path**: `packages/prisma/`
+**NPM**: `@nest-extended/prisma`
+**Dependencies**: `tslib`, `@nest-extended/core`, `zod`, `@prisma/client` (peer), `@nestjs/common` (peer), `lodash` (peer)
+
+#### Source Layout
+
+```
+packages/prisma/src/
+├── index.ts                          ← Public exports
+├── lib/
+│   └── nest.service.ts               ← NestService<T> generic service for Prisma
+├── common/
+│   ├── query.utils.ts                ← rawQuery, assignFilters, filterQuery, cleanQuery, FILTERS, OPERATORS
+│   └── apply-filters.ts             ← applyFilters() query helper (replaces Mongoose nestify)
+├── filters/
+│   ├── global-exception.filter.ts   ← GlobalExceptionFilter (catch-all, Prisma-aware)
+│   └── prisma-error.filter.ts       ← handlePrismaError (error code translator)
+└── types/
+    └── PrismaFilters.ts              ← PrismaFilters, PrismaFilterOptions interfaces
+```
+
+#### NestService — Full Method Reference
+
+| Method | Signature | Description |
+|---|---|---|
+| `_find` | `(query?, findOptions?) → PaginatedResponse<T> \| T[]` | Find with filters, sorting, pagination. Supports `{ pagination: false }`. |
+| `_get` | `(id, query?) → T \| null` | Find single record by ID. |
+| `_create` | `(data) → T` or `(data[]) → T[]` | Create one or many (requires `multi: true` for arrays). |
+| `_patch` | `(id, data, query?) → T \| T[] \| null` | Update by ID or bulk update by query (id=null). Uses `update` (single) or `updateMany` (bulk). |
+| `_remove` | `(id, query?, user?) → T \| T[] \| null` | Soft delete (patches `deleted=true`, `deletedBy`, `deletedAt`) or hard delete depending on config. User from param or CLS fallback. |
+| `getCount` | `(filter) → number` | Count records matching filter. |
+
+**Constructor**: `new NestService(prismaModel, serviceOptions?, softDeleteConfig?)`
+- `prismaModel`: Prisma delegate (e.g., `prisma.user`)
+- `serviceOptions`: `{ multi: false, softDelete: true, pagination: true }` (defaults)
+- `softDeleteConfig`: Custom `SoftDeleteConfig` or falls back to `{ deleted: { not: true } }` filter
+
+#### Query Operators (FeathersJS-style)
+
+| Operator | Prisma Translation |
+|---|---|
+| `$eq` | `{ field: value }` |
+| `$ne` | `{ field: { not: value } }` |
+| `$gt` | `{ field: { gt: value } }` |
+| `$gte` | `{ field: { gte: value } }` |
+| `$lt` | `{ field: { lt: value } }` |
+| `$lte` | `{ field: { lte: value } }` |
+| `$in` | `{ field: { in: [values] } }` |
+| `$nin` | `{ field: { notIn: [values] } }` |
+| `$like` | `{ field: { contains: value } }` |
+| `$notLike` | `{ field: { not: { contains: value } } }` |
+| `$iLike` | `{ field: { contains: value, mode: 'insensitive' } }` (PostgreSQL) |
+| `$notILike` | `{ NOT: { field: { contains: value, mode: 'insensitive' } } }` |
+| `$or` | `{ OR: [...conditions] }` |
+| `$and` | `{ AND: [...conditions] }` |
+
+#### Query Special Parameters
+
+| Param | Effect |
+|---|---|
+| `$sort` | Sort order — `{ createdAt: -1 }` → `orderBy: { createdAt: 'desc' }` |
+| `$limit` | Max records to return (default: 20), maps to Prisma `take` |
+| `$skip` | Records to skip (default: 0), maps to Prisma `skip` |
+| `$select` | Field projection — array of field names, string, or object → Prisma `select` |
+| `$include` | Eager-load relations — `{ $include: { posts: true } }` → Prisma `include` |
+
+#### Exception Filters
+
+**`GlobalExceptionFilter`** — Catch-all filter handling:
+- `HttpException` → standard NestJS response
+- `PrismaClientKnownRequestError` → translated error message (see below)
+- `PrismaClientValidationError` → 400 BadRequest
+- `ZodError` → 400 BadRequest
+- Unknown → 500 with stack trace (hidden in production)
+
+**Prisma Error Codes Handled**:
+| Code | Message |
+|---|---|
+| P2002 | Unique constraint violation (duplicate key) |
+| P2003 | Foreign key constraint violation |
+| P2025 | Record not found |
+| P2014 | Relation violation |
+| P2000 | Value too long for column |
+| P2006 | Invalid value provided |
+| P2011 | Null constraint violation |
+| P2024 | Connection pool timeout |
+| P2021 | Table does not exist |
+| P2022 | Column does not exist |
+
+#### Exported API
+
+| Export | Kind | Description |
+|---|---|---|
+| `NestService<T>` | Class | Generic CRUD service for Prisma |
+| `applyFilters` | Function | Apply $select/$include/$sort/$limit/$skip to Prisma query |
+| `rawQuery` | Function | Convert FeathersJS-style query to Prisma `where` clause |
+| `assignFilters` | Function | Extract filter params |
+| `filterQuery` | Function | Full query parser |
+| `cleanQuery` | Function | Validate query operators |
+| `FILTERS` | Object | Filter converters (`$sort`, `$limit`, `$skip`, `$select`, `$include`) |
+| `OPERATORS` | Array | Valid operator list |
+| `GlobalExceptionFilter` | Filter | Catch-all exception handler (Prisma-aware) |
+| `handlePrismaError` | Function | Prisma error message translator |
+| `PrismaFilters` | Interface | Filter types |
+| `PrismaFilterOptions` | Interface | Pagination defaults |
+
+---
+
+### 4.4 `@nest-extended/cli`
 
 **Path**: `packages/cli/`
 **NPM**: `@nest-extended/cli`
@@ -344,7 +456,7 @@ Currently handles:
 
 ---
 
-### 4.4 `@nest-extended/decorators`
+### 4.5 `@nest-extended/decorators`
 
 **Path**: `packages/decorators/`
 **NPM**: `@nest-extended/decorators`
@@ -384,6 +496,7 @@ yarn nx run-many -t build
 
 # Build a single package
 yarn nx build core
+yarn nx build prisma
 yarn nx build mongoose
 yarn nx build cli
 yarn nx build decorators
@@ -444,7 +557,8 @@ The `release.js` script:
   "@nest-extended/cli": ["packages/cli/src/index.ts"],
   "@nest-extended/core": ["packages/core/src/index.ts"],
   "@nest-extended/decorators": ["packages/decorators/src/index.ts"],
-  "@nest-extended/mongoose": ["packages/mongoose/src/index.ts"]
+  "@nest-extended/mongoose": ["packages/mongoose/src/index.ts"],
+  "@nest-extended/prisma": ["packages/prisma/src/index.ts"]
 }
 ```
 
@@ -477,10 +591,11 @@ The `release.js` script:
 @nest-extended/decorators  (standalone — no internal deps)
         ↑
 @nest-extended/core  (depends on decorators)
-        ↑
-@nest-extended/mongoose  (depends on core)
+        ↑                    ↑
+@nest-extended/mongoose      @nest-extended/prisma
+(depends on core)            (depends on core)
 
-@nest-extended/cli  (standalone — generates code that uses core, mongoose, decorators)
+@nest-extended/cli  (standalone — generates code that uses core, mongoose/prisma, decorators)
 ```
 
 ---

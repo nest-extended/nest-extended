@@ -13,6 +13,7 @@ const packages = [
     'package.json',
     'packages/core/package.json',
     'packages/mongoose/package.json',
+    'packages/prisma/package.json',
     'packages/cli/package.json',
     'packages/decorators/package.json',
 ];
@@ -33,6 +34,9 @@ packages.forEach((pkgPath) => {
     }
     if (pkg.dependencies && pkg.dependencies['@nest-extended/decorators']) {
         pkg.dependencies['@nest-extended/decorators'] = version;
+    }
+    if (pkg.dependencies && pkg.dependencies['@nest-extended/prisma']) {
+        pkg.dependencies['@nest-extended/prisma'] = version;
     }
 
 

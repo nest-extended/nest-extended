@@ -1,0 +1,187 @@
+
+/**
+ * Prisma-compatible auth templates.
+ * Same functionality as the Mongoose auth templates but using Prisma.
+ */
+
+export const getPrismaAuthController = (): string => `import {
+  Body,
+  Controller,
+  Post,
+  HttpCode,
+  HttpStatus,
+  Get,
+  Request,
+  BadRequestException,
+} from '@nestjs/common';
+import { AuthService } from './auth.service';
+import { Public } from '@nest-extended/decorators';
+import { UsersService } from '../users/users.service';
+
+@Controller('authentication')
+export class AuthController {
+  constructor(
+    private authService: AuthService,
+    private usersService: UsersService,
+  ) {}
+
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Post('')
+  signIn(@Body() signInDto: Record<string, string>) {
+    if (signInDto.strategy === 'local') {
+      return this.authService.signInLocal(signInDto.email, signInDto.password);
+    }
+    throw new BadRequestException('Invalid Strategy');
+  }
+
+  @Get('verify')
+  getProfile(@Request() req: Record<string, any>) {
+    const user = req.user as Record<string, any>;
+    return {
+      user: this.usersService.sanitizeUser(user),
+    };
+  }
+}
+`;
+
+export const getPrismaAuthService = (): string => `import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcrypt';
+import { UsersService } from '../users/users.service';
+
+@Injectable()
+export class AuthService {
+  constructor(
+    private usersService: UsersService,
+    private jwtService: JwtService,
+  ) { }
+
+  async signInLocal(
+    email: string,
+    pass: string,
+  ): Promise<Record<string, unknown>> {
+    const users = await this.usersService._find(
+      {
+        email,
+        $limit: 1,
+        $select: ['id', 'firstName', 'lastName', 'email', 'password', 'createdAt', 'updatedAt'],
+      },
+      { pagination: false },
+    );
+
+    const user = users[0] as Record<string, any>;
+    if (!user) throw new UnauthorizedException();
+
+    const passwordValid = await bcrypt.compare(pass, user.password);
+    if (!passwordValid) {
+      throw new UnauthorizedException();
+    }
+
+    const sanitizedUser = this.usersService.sanitizeUser(user);
+    const payload = { sub: { id: user.id }, user };
+    return {
+      accessToken: await this.jwtService.signAsync(payload),
+      user: sanitizedUser,
+    };
+  }
+}
+`;
+
+export const getPrismaAuthModule = (): string => `import { Module } from '@nestjs/common';
+import { AuthService } from './auth.service';
+import { JwtModule } from '@nestjs/jwt';
+import { AuthController } from './auth.controller';
+import { APP_GUARD } from '@nestjs/core';
+import { AuthGuard } from './auth.guard';
+import { UsersModule } from '../users/users.module';
+import { jwtConstants } from './constants/jwt-constants';
+
+@Module({
+  imports: [
+    UsersModule,
+    JwtModule.register({
+      global: true,
+      secret: jwtConstants.secret,
+      signOptions: { expiresIn: '365d' },
+    }),
+  ],
+  providers: [
+    AuthService,
+    {
+      provide: APP_GUARD,
+      useClass: AuthGuard,
+    },
+  ],
+  controllers: [AuthController],
+  exports: [AuthService],
+})
+export class AuthModule {}
+`;
+
+export const getPrismaAuthGuard = (): string => `import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { JwtService } from '@nestjs/jwt';
+import { IS_PUBLIC_KEY } from '@nest-extended/decorators';
+import { UsersService } from '../users/users.service';
+import { jwtConstants } from './constants/jwt-constants';
+import { ClsService } from 'nestjs-cls';
+
+@Injectable()
+export class AuthGuard implements CanActivate {
+  constructor(
+    private usersService: UsersService,
+    private jwtService: JwtService,
+    private reflector: Reflector,
+    private cls: ClsService,
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) {
+      return true;
+    }
+    const request = context.switchToHttp().getRequest<{ user?: Record<string, unknown>, headers: Record<string, string | undefined> }>();
+    const token = this.extractTokenFromHeader(request);
+    if (!token) {
+      throw new UnauthorizedException();
+    }
+    try {
+      const payload = await this.jwtService.verifyAsync<{ sub: { id: string } }>(token, {
+        secret: jwtConstants.secret,
+      });
+       const user = (await this.usersService._get(
+        payload.sub.id,
+      )) as unknown as Record<string, unknown>;
+      if (user) {
+        request.user = user;
+        this.cls.set('user', user);
+        return true;
+      }
+    } catch {
+      throw new UnauthorizedException();
+    }
+    throw new UnauthorizedException();
+  }
+
+  private extractTokenFromHeader(request: { headers: Record<string, string | undefined> }): string | undefined {
+    const [type, token] = request.headers.authorization?.split(' ') ?? [];
+    return type === 'Bearer' ? token : undefined;
+  }
+}
+`;
+
+export const getPrismaJwtConstants = (): string => `import { randomBytes } from 'crypto';
+// NOTE: For a real application, consider using a more secure way to inject the secret (like ConfigService)
+export const jwtConstants = {
+  secret: process.env.JWT_SECRET || randomBytes(32).toString('hex'),
+};
+`;
