@@ -1,6 +1,6 @@
 {
   "name": "@nest-extended/prisma",
-  "version": "0.0.2-beta-16",
+  "version": "0.0.2-beta-17",
   "private": false,
   "type": "commonjs",
   "contributors": [
@@ -19,7 +19,7 @@
   "types": "./src/index.d.ts",
   "dependencies": {
     "tslib": "^2.3.0",
-    "@nest-extended/core": "0.0.2-beta-16",
+    "@nest-extended/core": "0.0.2-beta-17",
     "zod": "^3.22.4"
   }
 }
