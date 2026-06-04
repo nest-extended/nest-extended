@@ -234,14 +234,40 @@ npm install -g @nest-extended/cli
 
 | Command | Alias | Description |
 |---|---|---|
-| `nest-cli generate app <name>` | `g app` | Scaffold a full NestJS app (DB selection, auth, soft-delete pre-wired) |
+| `nest-cli generate app <name> [options]` | `g app` | Scaffold a full NestJS app (DB selection, auth, soft-delete pre-wired) |
 | `nest-cli generate auth` | `g auth` | Add JWT Auth + Users modules to an existing app |
-| `nest-cli generate service <name>` | `g service` | Generate a full resource (module, service, controller, schema/model, DTO, tests) |
+| `nest-cli generate service <name> [options]` | `g service` | Generate a full resource (module, service, controller, schema/model, DTO, tests) |
 | `nest-cli migration run` | `m run` | Run migration scripts |
 | `nest-cli version` | `v` | Print version |
 
-### `g app` — Scaffolds a complete app with
+### `g app` — Scaffolds a complete app
 
+All flags are optional — omit any flag to be prompted interactively for that option.
+
+**Flags:**
+
+| Flag | Short | Values | Behavior when omitted |
+|---|---|---|---|
+| `--pkg-manager <pm>` | `-p`, `--pm` | `npm` \| `yarn` \| `pnpm` | Prompts interactively |
+| `--database <type>` | `-d`, `--db` | `Mongoose` \| `PostgreSQL` \| `MySQL` \| `SQLite` | Prompts interactively |
+| `--validator <type>` | `-v` | `zod` \| `class-validator` | Prompts interactively |
+| `--auth` | — | boolean flag | Prompts interactively |
+| `--skip-auth` | — | boolean flag | Prompts interactively |
+
+**Examples:**
+
+```bash
+# Fully non-interactive
+nest-cli g app my-api --db Mongoose --validator zod --pm yarn --auth
+
+# Mix of flags and prompts
+nest-cli g app my-api --database PostgreSQL --skip-auth
+
+# Fully interactive (prompts for all options)
+nest-cli g app my-api
+```
+
+**Generates:**
 - Database choice: **Mongoose**, **PostgreSQL**, **MySQL**, or **SQLite (Prisma)**
 - Validation library: `zod` or `class-validator`
 - `ConfigModule`, `ClsModule`, `NestExtendedModule`, `GlobalExceptionFilter`, `NullResponseInterceptor` pre-configured
@@ -249,6 +275,31 @@ npm install -g @nest-extended/cli
 - Optionally: JWT Auth + Users modules
 
 ### `g service <name>` — Generates a resource bundle
+
+All flags are optional — omit any flag to be prompted interactively for that option.
+
+**Flags:**
+
+| Flag | Short | Values | Behavior when omitted |
+|---|---|---|---|
+| `--database <type>` | `-d`, `--db` | `Mongoose` \| `PostgreSQL` \| `MySQL` \| `SQLite` | Prompts interactively |
+| `--validator <type>` | `-v` | `zod` \| `class-validator` | Prompts interactively |
+
+**Examples:**
+
+```bash
+# Fully non-interactive
+nest-cli g service category --database Mongoose --validator zod
+
+# Short flags
+nest-cli g service user-profile -d Mongoose -v class-validator
+
+# Mix — prompts only for what's missing
+nest-cli g service category --db PostgreSQL
+
+# Fully interactive (prompts for all options)
+nest-cli g service user-profile
+```
 
 For `nest-cli g service user-profile` → `UserProfile` / `userProfile`:
 
@@ -259,7 +310,7 @@ For `nest-cli g service user-profile` → `UserProfile` / `userProfile`:
 - `src/services/userProfile/dto/userProfile.dto.ts` — Zod or class-validator
 - `src/services/userProfile/userProfile.*.spec.ts` — unit tests
 
-**Supports nested paths**: `nest-cli g service qna/category` → `src/services/qna/category/`
+**Supports nested paths**: `nest-cli g service qna/category --db Mongoose -v zod` → `src/services/qna/category/`
 
 **Auth-aware**: if `src/services/auth/` exists, schemas automatically include `createdBy`, `updatedBy`, `deletedBy` fields.
 

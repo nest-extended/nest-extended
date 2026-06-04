@@ -158,7 +158,12 @@ const appendPrismaModel = (projectDir: string, Name: string, isAuthGenerated: bo
     console.log(chalk.green(`Added model ${Name} to prisma/schema.prisma`));
 };
 
-export const generateServiceAction = async (rawName: string) => {
+const DB_CHOICES = ['Mongoose', 'PostgreSQL', 'MySQL', 'SQLite'];
+const VALIDATOR_CHOICES = ['zod', 'class-validator'];
+
+interface ServiceOptions { database?: string; db?: string; validator?: string; }
+
+export const generateServiceAction = async (rawName: string, options: ServiceOptions = {}) => {
     const parts = rawName.split('/');
     const rawBasename = parts.pop() || '';
     const dirPath = parts.join('/');
@@ -174,31 +179,43 @@ export const generateServiceAction = async (rawName: string) => {
     const fullPath = dirPath ? `${dirPath}/${name}` : name;
     const targetDir = `src/services/${fullPath}`;
 
-    // Ask user which database to use
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-expect-error
-    const { databaseType } = await inquirer.prompt([
-        {
+    // Resolve --database / --db / -d
+    let databaseType: string = options.database || options.db || '';
+    if (databaseType && !DB_CHOICES.includes(databaseType)) {
+        console.error(chalk.red(`Invalid --database "${databaseType}". Valid options: ${DB_CHOICES.join(', ')}`));
+        process.exit(1);
+    }
+    if (!databaseType) {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-expect-error
+        const answer = await inquirer.prompt([{
             type: 'list',
             name: 'databaseType',
             message: 'Which database would you like to use?',
-            choices: ['Mongoose', 'PostgreSQL', 'MySQL', 'SQLite'],
+            choices: DB_CHOICES,
             default: 'Mongoose',
-        },
-    ]);
+        }]);
+        databaseType = answer.databaseType;
+    }
 
-    // Ask user which validator to use
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-expect-error
-    const { validatorType } = await inquirer.prompt([
-        {
+    // Resolve --validator / -v
+    let validatorType: string = options.validator || '';
+    if (validatorType && !VALIDATOR_CHOICES.includes(validatorType)) {
+        console.error(chalk.red(`Invalid --validator "${validatorType}". Valid options: ${VALIDATOR_CHOICES.join(', ')}`));
+        process.exit(1);
+    }
+    if (!validatorType) {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-expect-error
+        const answer = await inquirer.prompt([{
             type: 'list',
             name: 'validatorType',
             message: 'Which validation library would you like to use?',
-            choices: ['zod', 'class-validator'],
+            choices: VALIDATOR_CHOICES,
             default: 'zod',
-        },
-    ]);
+        }]);
+        validatorType = answer.validatorType;
+    }
 
     const projectDir = process.cwd();
     const isPrisma = databaseType !== 'Mongoose';

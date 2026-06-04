@@ -25,7 +25,7 @@ yarn add -D @nest-extended/cli
 ### Generate Application (`g app`)
 
 Generates a fully configured NestJS application with standard best-practices built right in.
-It interactively prompts for your choice of database (currently supporting MongoDB), package manager (npm/yarn/pnpm), and handles scaffolding the app. It also prompts whether you want to automatically generate authentication modules.
+Prompts for package manager, database, validation library, and whether to scaffold authentication modules — any of these can be supplied as flags to skip the prompt.
 
 **Includes:**
 - Running `@nestjs/cli`'s `nest new` command internally
@@ -42,14 +42,31 @@ It interactively prompts for your choice of database (currently supporting Mongo
 **Usage:**
 
 ```bash
-nest-cli g app <app-name>
+nest-cli g app <app-name> [options]
 # or
-nest-cli generate app <app-name>
+nest-cli generate app <app-name> [options]
 ```
 
-**Example:**
+**Flags:**
+
+| Flag | Short | Values | Behavior when omitted |
+|---|---|---|---|
+| `--pkg-manager <pm>` | `-p`, `--pm` | `npm` \| `yarn` \| `pnpm` | Prompts interactively |
+| `--database <type>` | `-d`, `--db` | `Mongoose` \| `PostgreSQL` \| `MySQL` \| `SQLite` | Prompts interactively |
+| `--validator <type>` | `-v` | `zod` \| `class-validator` | Prompts interactively |
+| `--auth` | — | boolean flag | Prompts interactively |
+| `--skip-auth` | — | boolean flag | Prompts interactively |
+
+**Examples:**
 
 ```bash
+# Fully non-interactive — no prompts at all
+nest-cli g app my-api --db Mongoose --validator zod --pm yarn --auth
+
+# Mix — prompts only for what's missing
+nest-cli g app my-api --database PostgreSQL --validator class-validator
+
+# Fully interactive (original behavior — prompts for everything)
 nest-cli g app e-commerce-dashboard
 ```
 
@@ -94,18 +111,35 @@ It also automatically updates your `src/app.module.ts` to include the new module
 **Usage:**
 
 ```bash
-nest-cli g service <name>
+nest-cli g service <name> [options]
 # or
-nest-cli generate service <name>
+nest-cli generate service <name> [options]
 ```
 
-**Example:**
+**Flags:**
+
+| Flag | Short | Values | Behavior when omitted |
+|---|---|---|---|
+| `--database <type>` | `-d`, `--db` | `Mongoose` \| `PostgreSQL` \| `MySQL` \| `SQLite` | Prompts interactively |
+| `--validator <type>` | `-v` | `zod` \| `class-validator` | Prompts interactively |
+
+**Examples:**
 
 ```bash
+# Fully non-interactive — no prompts at all
+nest-cli g service category --database Mongoose --validator zod
+
+# Mix — prompts only for what's missing
+nest-cli g service category --db PostgreSQL
+
+# Using short flags
+nest-cli g service user-profile -d Mongoose -v class-validator
+
+# Fully interactive (original behavior — prompts for everything)
 nest-cli g service user-profile
 ```
 
-This will create:
+**Generated files for `nest-cli g service user-profile`:**
 - `src/services/userProfile/userProfile.module.ts`
 - `src/services/userProfile/userProfile.service.ts`
 - `src/services/userProfile/userProfile.controller.ts`
@@ -117,7 +151,7 @@ This will create:
 Nested example:
 
 ```bash
-nest-cli g service qna/category
+nest-cli g service qna/category --db Mongoose -v zod
 ```
 
 This will create files under `src/services/qna/category/` and `src/schemas/qna/category.schema.ts`.

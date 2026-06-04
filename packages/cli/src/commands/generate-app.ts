@@ -10,43 +10,92 @@ import { generateAuthServices } from '../lib/generate-auth-services';
 import { generatePrismaAuthServices } from '../lib/generate-prisma-auth-services';
 import { getPrismaServiceFile, getPrismaModuleFile } from '../templates/prisma-setup.template';
 
-export const generateAppAction = async (appName: string) => {
-    const questions = [
-        {
+const PM_CHOICES = ['npm', 'yarn', 'pnpm'];
+const DB_CHOICES = ['Mongoose', 'PostgreSQL', 'MySQL', 'SQLite'];
+const VALIDATOR_CHOICES = ['zod', 'class-validator'];
+
+interface AppOptions {
+    pkgManager?: string; pm?: string;
+    database?: string; db?: string;
+    validator?: string;
+    auth?: boolean; skipAuth?: boolean;
+}
+
+export const generateAppAction = async (appName: string, options: AppOptions = {}) => {
+    // Resolve --pkg-manager / --pm / -p
+    let pkgManager: string = options.pkgManager || options.pm || '';
+    if (pkgManager && !PM_CHOICES.includes(pkgManager)) {
+        console.error(chalk.red(`Invalid --pkg-manager "${pkgManager}". Valid options: ${PM_CHOICES.join(', ')}`));
+        process.exit(1);
+    }
+    if (!pkgManager) {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-expect-error
+        const answer = await inquirer.prompt([{
             type: 'list',
             name: 'pkgManager',
             message: 'Which package manager would you like to use?',
-            choices: ['npm', 'yarn', 'pnpm'],
+            choices: PM_CHOICES,
             default: 'yarn',
-        },
-        {
+        }]);
+        pkgManager = answer.pkgManager;
+    }
+
+    // Resolve --database / --db / -d
+    let database: string = options.database || options.db || '';
+    if (database && !DB_CHOICES.includes(database)) {
+        console.error(chalk.red(`Invalid --database "${database}". Valid options: ${DB_CHOICES.join(', ')}`));
+        process.exit(1);
+    }
+    if (!database) {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-expect-error
+        const answer = await inquirer.prompt([{
             type: 'list',
             name: 'database',
             message: 'Which database would you like to use?',
-            choices: ['Mongoose', 'PostgreSQL', 'MySQL', 'SQLite'],
+            choices: DB_CHOICES,
             default: 'Mongoose',
-        },
-        {
+        }]);
+        database = answer.database;
+    }
+
+    // Resolve --validator / -v
+    let validatorType: string = options.validator || '';
+    if (validatorType && !VALIDATOR_CHOICES.includes(validatorType)) {
+        console.error(chalk.red(`Invalid --validator "${validatorType}". Valid options: ${VALIDATOR_CHOICES.join(', ')}`));
+        process.exit(1);
+    }
+    if (!validatorType) {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-expect-error
+        const answer = await inquirer.prompt([{
             type: 'list',
             name: 'validatorType',
             message: 'Which validation library would you like to use?',
-            choices: ['zod', 'class-validator'],
+            choices: VALIDATOR_CHOICES,
             default: 'zod',
-        },
-        {
+        }]);
+        validatorType = answer.validatorType;
+    }
+
+    // Resolve --auth / --skip-auth
+    let generateAuth: boolean;
+    if (options.auth) {
+        generateAuth = true;
+    } else if (options.skipAuth) {
+        generateAuth = false;
+    } else {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-expect-error
+        const answer = await inquirer.prompt([{
             type: 'confirm',
             name: 'generateAuth',
             message: 'Would you like to generate authentication (Users and Auth services)?',
             default: true,
-        },
-    ];
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-expect-error
-    const answers = await inquirer.prompt(questions);
-    const database = answers['database'];
-    const pkgManager = answers['pkgManager'];
-    const validatorType = answers['validatorType'];
-    const generateAuth = answers['generateAuth'];
+        }]);
+        generateAuth = answer.generateAuth;
+    }
 
     const isPrisma = database !== 'Mongoose';
 
