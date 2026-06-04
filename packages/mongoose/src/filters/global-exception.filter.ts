@@ -2,10 +2,10 @@ import {
   Catch,
   ArgumentsHost,
   ExceptionFilter,
-  BadRequestException,
+  HttpStatus,
 } from '@nestjs/common';
 import { HttpException } from '@nestjs/common/exceptions/http.exception';
-import { MongooseError } from 'mongoose';
+import { Error as MongooseError, MongooseError as MongooseBaseError } from 'mongoose';
 import { MongoServerError } from 'mongodb';
 import { ZodError } from 'zod';
 import { handleMongoError } from './mongo-error.filter';
@@ -16,28 +16,54 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
     const request = ctx.getRequest();
+
     if (exception instanceof HttpException) {
       return response
         .status(exception.getStatus())
         .json(exception.getResponse());
     }
 
-    if (exception instanceof MongooseError) {
-      const error = new BadRequestException(exception);
+    if (exception instanceof MongooseError.ValidationError) {
+      const formattedErrors = Object.keys(exception.errors).reduce<
+        Record<string, string>
+      >((acc, key) => {
+        acc[key] = exception.errors[key].message;
+        return acc;
+      }, {});
 
-      return response.status(error.getStatus()).json(error.getResponse());
+      return response.status(HttpStatus.BAD_REQUEST).json({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: 'Validation failed',
+        errors: formattedErrors,
+      });
+    }
+
+    if (exception instanceof MongooseBaseError) {
+      return response.status(HttpStatus.BAD_REQUEST).json({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: exception.message || 'Database error',
+      });
     }
 
     if (exception instanceof ZodError) {
-      const error = new BadRequestException(exception);
+      const formattedErrors: Record<string, string> = {};
+      exception.issues.forEach((issue) => {
+        const path = issue.path.join('.');
+        if (!formattedErrors[path]) {
+          formattedErrors[path] = issue.message;
+        }
+      });
 
-      return response.status(error.getStatus()).json(error.getResponse());
+      return response.status(HttpStatus.BAD_REQUEST).json({
+        statusCode: HttpStatus.BAD_REQUEST,
+        message: 'Validation failed',
+        errors: formattedErrors,
+      });
     }
 
     if (exception instanceof MongoServerError) {
-      const error = new BadRequestException(exception);
       return response
-        .status(error.getStatus())
+        .status(HttpStatus.BAD_REQUEST)
         .json(handleMongoError(exception));
     }
 

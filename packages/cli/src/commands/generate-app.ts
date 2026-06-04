@@ -77,6 +77,7 @@ export const generateAppAction = async (appName: string) => {
         const baseDeps = [
             '@nestjs/config',
             'nestjs-cls',
+            'qs',
             `@nest-extended/core@${nestExtendedVersion}`,
             `@nest-extended/decorators@${nestExtendedVersion}`,
         ];
@@ -122,7 +123,7 @@ export const generateAppAction = async (appName: string) => {
     });
 
     // 3. Install Dev dependencies
-    const devDeps: string[] = [];
+    const devDeps: string[] = ['@types/qs'];
     if (generateAuth) devDeps.push('@types/bcrypt');
     if (isPrisma) devDeps.push('prisma');
 
@@ -209,6 +210,7 @@ import { PrismaModule } from './prisma/prisma.module';${authImports}
           deletedAt: new Date(),
         }),
       },
+      filters: [],
     }),
     PrismaModule,${authModuleImports}`;
 
@@ -285,6 +287,7 @@ import { MongooseModule } from '@nestjs/mongoose';${authImports}
           deletedAt: new Date(),
         }),
       },
+      filters: [],
     }),
     MongooseModule.forRoot(process.env.MONGODB_URI || 'mongodb://localhost:27017/test'),${authModuleImports}`;
 

@@ -1,3 +1,6 @@
+import { Type } from '@nestjs/common';
+import { ExceptionFilter } from '@nestjs/common';
+
 /**
  * Configuration interface for NestExtended module.
  * This allows the application to configure soft delete behavior
@@ -41,6 +44,15 @@ export interface NestExtendedConfig {
      * - `false`: disables the qs query parser (uses Express default)
      */
     queryParser?: QueryParserConfig | boolean;
+
+    /**
+     * Array of ExceptionFilter classes to register globally via APP_FILTER.
+     * Each entry is registered in the order provided.
+     *
+     * @example
+     * filters: [MongooseValidationExceptionFilter, ZodValidationExceptionFilter]
+     */
+    filters?: Type<ExceptionFilter>[];
 }
 
 /**
