@@ -102,6 +102,15 @@ export class UsersController {
     @Param('id') id: string,
   ) {
     delete patchUsersDto.email;
+
+    if (patchUsersDto.password) {
+      const saltOrRounds = 10;
+      patchUsersDto.password = await bcrypt.hash(
+        patchUsersDto.password,
+        saltOrRounds,
+      );
+    }
+
     return await this.usersService._patch(id, patchUsersDto, query);
   }
 
