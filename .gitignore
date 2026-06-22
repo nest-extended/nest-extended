@@ -46,3 +46,6 @@ Thumbs.db
 .claude/worktrees
 .nx/polygraph
 .nx/self-healing
+
+# E2E generated test apps (scripts/e2e)
+/.e2e-apps

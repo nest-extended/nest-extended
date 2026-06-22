@@ -35,6 +35,7 @@
   },
   "scripts": {
     "test": "nx test",
+    "test:e2e:generated": "node --import @swc-node/register/esm-register scripts/e2e/test-generated-app.ts",
     "release": "node scripts/release.js"
   },
   "devDependencies": {
