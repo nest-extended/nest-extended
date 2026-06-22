@@ -147,23 +147,17 @@ yarn test:e2e:generated                 # all four databases
 yarn test:e2e:generated --db SQLite     # one database (SQLite needs no services)
 ```
 
-It runs `scripts/e2e/test-generated-app.ts`, which for each database generates an
-app (`g app ... --auth`), generates a CRUD resource (`g service product`), prepares
-the database (Prisma generate + db push; Docker-provisioned servers for
-PostgreSQL/MySQL/Mongo), boots the server, and runs 11 HTTP assertions covering
-auth + full CRUD + soft delete. See
-[`scripts/e2e/README.md`](../scripts/e2e/README.md) for prerequisites
-(Node 20, Docker for server DBs), the check list, and output locations.
+It runs `scripts/e2e/test-generated-app.ts`, which generates an app, generates a
+CRUD resource, prepares the database, boots the server, and runs 11 HTTP
+assertions covering auth + full CRUD + soft delete. **Run it after any change to
+the generator or its templates** — it is the only thing that catches regressions
+in emitted code, and CI does not run it.
 
-> The root `package.json` defines `"test": "nx test"`, but no project currently
-> declares a `test` target and there is no Jest config in the repo, so `yarn test`
-> / `nx test` has nothing to run. The packages also ship no `*.spec.ts` of their
-> own (the `*.spec.template.ts` files are CLI templates that emit specs into
-> *generated* apps). Run `test:e2e:generated` to validate changes; add an Nx
-> `test` target + runner if you introduce unit tests.
-
-**Run the E2E after any change to the generator or its templates** — that is the
-only thing that catches regressions in emitted code.
+There are no unit tests today (`nx test` has nothing to run). See
+**[testing.md](testing.md)** for the full picture: the check list, prerequisites,
+the database/Docker matrix, output artifacts, exit codes, the CI relationship, and
+how to add checks. The harness's own README lives at
+[`../scripts/e2e/README.md`](../scripts/e2e/README.md).
 
 ## Release
 

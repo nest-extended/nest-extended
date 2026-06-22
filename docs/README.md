@@ -17,7 +17,8 @@ source of truth — this folder links to them rather than repeating them.
 | Understand the app that `nest-cli g app` produces (structure, HTTP API, auth) | [generated-app.md](generated-app.md) |
 | Write queries over HTTP (`$limit`, `$sort`, operators, pagination) | [querying.md](querying.md) |
 | Understand or configure soft delete and audit fields | [soft-delete-and-auditing.md](soft-delete-and-auditing.md) |
-| Build, test, release, or contribute to the monorepo | [architecture.md](architecture.md) |
+| Run or extend the end-to-end test suite | [testing.md](testing.md) |
+| Build, release, or contribute to the monorepo | [architecture.md](architecture.md) |
 
 ## The packages
 
