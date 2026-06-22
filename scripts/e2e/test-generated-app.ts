@@ -36,12 +36,57 @@ const nestCli = (args: string[], opts: Record<string, unknown> = {}): Promise<vo
   run(CLI.cmd, [...CLI.prefix, ...args], opts);
 
 const RESOURCE = 'product'; // generated CRUD resource → @Controller('product')
-const MONGO_HOST = 'localhost';
-const MONGO_PORT = 27017;
-const MONGO_CONTAINER = 'nest-e2e-mongo';
 const SERVER_READY_TIMEOUT_MS = 90_000;
+const DB_READY_TIMEOUT_MS = 120_000; // Postgres/MySQL/Mongo container start can be slow
 
-type DbType = 'SQLite' | 'Mongoose';
+type DbType = 'SQLite' | 'PostgreSQL' | 'MySQL' | 'Mongoose';
+const ALL_DATABASES: DbType[] = ['SQLite', 'PostgreSQL', 'MySQL', 'Mongoose'];
+
+/**
+ * A Docker-backed database server the harness can provision on demand. The
+ * credentials/port MUST match the DATABASE_URL the generator writes into the
+ * generated app's .env, so the generated app connects to the same instance:
+ *   PostgreSQL → postgresql://user:password@localhost:5432/mydb?schema=public
+ *   MySQL      → mysql://user:password@localhost:3306/mydb
+ *   Mongoose   → mongodb://localhost:27017/test  (no auth)
+ * SQLite is file-based and has no entry here.
+ */
+interface DbServer {
+  container: string;
+  image: string;
+  port: number;        // host port (also the container port we publish to)
+  env: string[];       // docker `-e KEY=VALUE` pairs
+  /** Readiness command run via `docker exec` (exit 0 = ready). TCP-open if omitted. */
+  readyCmd?: string[];
+}
+
+const DB_SERVERS: Partial<Record<DbType, DbServer>> = {
+  PostgreSQL: {
+    container: 'nest-e2e-postgres',
+    image: 'postgres:16',
+    port: 5432,
+    env: ['-e', 'POSTGRES_USER=user', '-e', 'POSTGRES_PASSWORD=password', '-e', 'POSTGRES_DB=mydb'],
+    readyCmd: ['pg_isready', '-U', 'user', '-d', 'mydb'],
+  },
+  MySQL: {
+    // The generated app uses @prisma/adapter-mariadb, so a MariaDB server is the
+    // most compatible target for the mysql:// URL (avoids MySQL 8 auth-plugin friction).
+    container: 'nest-e2e-mysql',
+    image: 'mariadb:11',
+    port: 3306,
+    env: [
+      '-e', 'MARIADB_USER=user', '-e', 'MARIADB_PASSWORD=password',
+      '-e', 'MARIADB_DATABASE=mydb', '-e', 'MARIADB_ROOT_PASSWORD=rootpassword',
+    ],
+    readyCmd: ['healthcheck.sh', '--connect', '--innodb_initialized'],
+  },
+  Mongoose: {
+    container: 'nest-e2e-mongo',
+    image: 'mongo:7',
+    port: 27017,
+    env: [],
+  },
+};
 
 interface HttpResult {
   ok: boolean;
@@ -246,48 +291,61 @@ function killServer(child: ChildProcess | undefined): void {
 }
 
 // ---------------------------------------------------------------------------
-// Mongo handling
+// Database server provisioning (Docker)
 // ---------------------------------------------------------------------------
 
+/** Is the container's DB ready? TCP-open, plus the readyCmd via `docker exec` if defined. */
+async function isServerReady(spec: DbServer): Promise<boolean> {
+  if (!(await probeTcp('localhost', spec.port, 1000))) return false;
+  if (!spec.readyCmd) return true;
+  const res = spawnSync('docker', ['exec', spec.container, ...spec.readyCmd], { stdio: 'ignore' });
+  return res.status === 0;
+}
+
 /**
- * Ensure a MongoDB is reachable. Returns { ready, startedContainer }.
- * Tries: existing instance → throwaway Docker container → give up (skip).
+ * Ensure the database server for `db` is reachable. Returns { ready, startedContainer }.
+ * SQLite needs nothing. For server DBs: use an existing instance on the port if
+ * present, else start a throwaway Docker container; give up (skip) if neither works.
  */
-async function ensureMongo(): Promise<{ ready: boolean; startedContainer: boolean }> {
-  if (await probeTcp(MONGO_HOST, MONGO_PORT)) {
-    info(`MongoDB already reachable at ${MONGO_HOST}:${MONGO_PORT}`);
+async function ensureServer(db: DbType): Promise<{ ready: boolean; startedContainer: boolean }> {
+  const spec = DB_SERVERS[db];
+  if (!spec) return { ready: true, startedContainer: false }; // SQLite — file-based
+
+  if (await probeTcp('localhost', spec.port)) {
+    info(`${db} already reachable on localhost:${spec.port} — using it.`);
     return { ready: true, startedContainer: false };
   }
   if (!hasBinary('docker')) {
-    warn(`No MongoDB on ${MONGO_HOST}:${MONGO_PORT} and Docker is not installed.`);
+    warn(`No ${db} on localhost:${spec.port} and Docker is not installed.`);
     return { ready: false, startedContainer: false };
   }
-  info('Starting throwaway MongoDB container via Docker...');
-  // Remove any leftover container from a previous aborted run.
-  spawnSync('docker', ['rm', '-f', MONGO_CONTAINER], { stdio: 'ignore' });
+
+  info(`Starting throwaway ${db} container (${spec.image}) via Docker...`);
+  spawnSync('docker', ['rm', '-f', spec.container], { stdio: 'ignore' }); // clear leftovers
   const start = spawnSync('docker', [
-    'run', '-d', '--rm', '-p', `${MONGO_PORT}:27017`, '--name', MONGO_CONTAINER, 'mongo:7',
+    'run', '-d', '--rm', '-p', `${spec.port}:${spec.port}`, '--name', spec.container, ...spec.env, spec.image,
   ], { stdio: 'ignore' });
   if (start.status !== 0) {
-    warn('Failed to start MongoDB container.');
+    warn(`Failed to start ${db} container (is the Docker daemon running?).`);
     return { ready: false, startedContainer: false };
   }
-  // Wait for it to accept connections.
-  const deadline = Date.now() + 30_000;
+
+  const deadline = Date.now() + DB_READY_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    if (await probeTcp(MONGO_HOST, MONGO_PORT)) {
-      info('MongoDB container is ready.');
+    if (await isServerReady(spec)) {
+      info(`${db} container is ready.`);
       return { ready: true, startedContainer: true };
     }
-    await sleep(1000);
+    await sleep(2000);
   }
-  warn('MongoDB container did not become ready in time.');
-  spawnSync('docker', ['rm', '-f', MONGO_CONTAINER], { stdio: 'ignore' });
+  warn(`${db} container did not become ready within ${DB_READY_TIMEOUT_MS / 1000}s.`);
+  spawnSync('docker', ['rm', '-f', spec.container], { stdio: 'ignore' });
   return { ready: false, startedContainer: false };
 }
 
-function stopMongoContainer(): void {
-  spawnSync('docker', ['rm', '-f', MONGO_CONTAINER], { stdio: 'ignore' });
+function stopServer(db: DbType): void {
+  const spec = DB_SERVERS[db];
+  if (spec) spawnSync('docker', ['rm', '-f', spec.container], { stdio: 'ignore' });
 }
 
 // ---------------------------------------------------------------------------
@@ -394,11 +452,22 @@ async function runForDatabase(db: DbType, port: number): Promise<RunResult> {
   info(`Generating CRUD resource "${RESOURCE}"...`);
   await nestCli(['g', 'service', RESOURCE, '--db', db, '--validator', 'zod'], { cwd: appDir });
 
-  // 3. DB prep (Prisma only)
+  // 3. DB prep (Prisma databases: SQLite / PostgreSQL / MySQL)
   if (db !== 'Mongoose') {
-    info('Generating Prisma client and pushing schema to SQLite...');
+    info(`Generating Prisma client and pushing schema (${db})...`);
     await run('npx', ['prisma', 'generate'], { cwd: appDir });
-    await run('npx', ['prisma', 'db', 'push'], { cwd: appDir });
+    // Retry db push: a freshly-started server can accept TCP before it accepts queries.
+    let pushed = false;
+    for (let attempt = 1; attempt <= 5 && !pushed; attempt++) {
+      try {
+        await run('npx', ['prisma', 'db', 'push'], { cwd: appDir });
+        pushed = true;
+      } catch (err) {
+        if (attempt === 5) throw err;
+        warn(`prisma db push failed (attempt ${attempt}/5), retrying in 3s...`);
+        await sleep(3000);
+      }
+    }
   }
 
   // 4. Boot server
@@ -433,17 +502,17 @@ async function runForDatabase(db: DbType, port: number): Promise<RunResult> {
 async function ensureCli(): Promise<void> {
   if (hasBinary('nest-cli')) {
     CLI = { cmd: 'nest-cli', prefix: [] };
-    info('Using globally-linked nest-cli.');
+    info('Using globally-linked nest-cli (assuming it reflects your current source).');
     return;
   }
-  if (!existsSync(DIST_CLI)) {
-    info('nest-cli not linked — building the CLI from source (yarn nx build cli)...');
-    try {
-      await run('npx', ['nx', 'build', 'cli'], { cwd: REPO_ROOT });
-    } catch {
-      console.error(`${C.red}Failed to build the CLI. Run "yarn nx build cli" manually.${C.reset}`);
-      process.exit(2);
-    }
+  // Always (re)build the dist fallback so the test reflects current source —
+  // testing a stale dist would silently validate old code.
+  info('nest-cli not linked — building the CLI from current source (nx build cli)...');
+  try {
+    await run('npx', ['nx', 'build', 'cli'], { cwd: REPO_ROOT });
+  } catch {
+    console.error(`${C.red}Failed to build the CLI. Run "yarn nx build cli" manually.${C.reset}`);
+    process.exit(2);
   }
   if (!existsSync(DIST_CLI)) {
     console.error(`${C.red}Built CLI not found at ${DIST_CLI}.${C.reset}`);
@@ -463,12 +532,11 @@ async function main(): Promise<void> {
   const dbIdx = args.indexOf('--db');
   if (dbIdx !== -1 && args[dbIdx + 1]) requested = args[dbIdx + 1];
 
-  const ALL: DbType[] = ['SQLite', 'Mongoose'];
-  let matrix: DbType[] = ALL;
+  let matrix: DbType[] = ALL_DATABASES;
   if (requested) {
-    const match = ALL.find((d) => d.toLowerCase() === requested!.toLowerCase());
+    const match = ALL_DATABASES.find((d) => d.toLowerCase() === requested!.toLowerCase());
     if (!match) {
-      console.error(`${C.red}Unknown --db "${requested}". Valid: ${ALL.join(', ')}${C.reset}`);
+      console.error(`${C.red}Unknown --db "${requested}". Valid: ${ALL_DATABASES.join(', ')}${C.reset}`);
       process.exit(2);
     }
     matrix = [match];
@@ -483,32 +551,27 @@ async function main(): Promise<void> {
 
   const summary: RunResult[] = [];
   let port = 3100;
-  let mongoStartedContainer = false;
 
-  try {
-    for (const db of matrix) {
-      if (db === 'Mongoose') {
-        const mongo = await ensureMongo();
-        if (!mongo.ready) {
-          warn('Skipping Mongoose run — no MongoDB available.');
-          summary.push({ db, status: 'SKIP' });
-          continue;
-        }
-        mongoStartedContainer = mongo.startedContainer;
-      }
-      try {
-        const result = await runForDatabase(db, port);
-        summary.push(result);
-      } catch (err) {
-        warn(`${db} run errored: ${(err as Error).message}`);
-        summary.push({ db, status: 'FAIL', reason: (err as Error).message });
+  for (const db of matrix) {
+    // Provision the database server (no-op for SQLite).
+    const server = await ensureServer(db);
+    if (!server.ready) {
+      warn(`Skipping ${db} run — no database available.`);
+      summary.push({ db, status: 'SKIP' });
+      continue;
+    }
+    try {
+      const result = await runForDatabase(db, port);
+      summary.push(result);
+    } catch (err) {
+      warn(`${db} run errored: ${(err as Error).message}`);
+      summary.push({ db, status: 'FAIL', reason: (err as Error).message });
+    } finally {
+      if (server.startedContainer) {
+        info(`Stopping ${db} container...`);
+        stopServer(db);
       }
       port += 1;
-    }
-  } finally {
-    if (mongoStartedContainer) {
-      info('Stopping MongoDB container...');
-      stopMongoContainer();
     }
   }
 
