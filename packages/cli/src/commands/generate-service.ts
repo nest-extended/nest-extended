@@ -19,7 +19,8 @@ import { getPrismaModel } from '../templates/prisma-model.template';
 import { getPrismaController } from '../templates/prisma-controller.template';
 import { getPrismaDto } from '../templates/prisma-dto.template';
 import { getPrismaDtoClassValidator } from '../templates/prisma-dto-class-validator.template';
-import { getPrismaServiceFile, getPrismaModuleFile } from '../templates/prisma-setup.template';
+import { getPrismaServiceFile, getPrismaModuleFile, getPrismaAdapterPackage } from '../templates/prisma-setup.template';
+import { configurePrismaGenerator, ignoreGeneratedPrismaClient } from '../lib/configure-prisma-generator';
 
 /**
  * Detect the package manager used in the project.
@@ -116,6 +117,11 @@ const ensurePrismaSetup = async (projectDir: string, dbType: string): Promise<vo
                 else reject(new Error(`prisma init failed with code ${code}`));
             });
         });
+
+        // Normalize the Prisma 7 client generator block for NestJS and keep the
+        // generated client out of version control.
+        configurePrismaGenerator(projectDir);
+        ignoreGeneratedPrismaClient(projectDir);
     }
 
     // Create PrismaService and PrismaModule if they don't exist
@@ -124,7 +130,7 @@ const ensurePrismaSetup = async (projectDir: string, dbType: string): Promise<vo
 
     if (!fs.existsSync(prismaServicePath)) {
         fs.ensureDirSync(path.join(projectDir, 'src/prisma'));
-        fs.writeFileSync(prismaServicePath, getPrismaServiceFile());
+        fs.writeFileSync(prismaServicePath, getPrismaServiceFile(dbType));
         console.log(chalk.green('Created src/prisma/prisma.service.ts'));
     }
 
@@ -229,7 +235,7 @@ export const generateServiceAction = async (rawName: string, options: ServiceOpt
 
     // Ensure database-specific packages are installed
     if (isPrisma) {
-        await ensurePackagesInstalled(projectDir, ['@prisma/client', '@nest-extended/prisma']);
+        await ensurePackagesInstalled(projectDir, ['@prisma/client', getPrismaAdapterPackage(databaseType), '@nest-extended/prisma']);
         await ensureDevPackagesInstalled(projectDir, ['prisma']);
         await ensurePrismaSetup(projectDir, databaseType);
     }

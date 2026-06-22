@@ -8,7 +8,8 @@ import { getController } from '../templates/controller.template';
 import { getDto } from '../templates/dto.template';
 import { generateAuthServices } from '../lib/generate-auth-services';
 import { generatePrismaAuthServices } from '../lib/generate-prisma-auth-services';
-import { getPrismaServiceFile, getPrismaModuleFile } from '../templates/prisma-setup.template';
+import { getPrismaServiceFile, getPrismaModuleFile, getPrismaAdapterPackage } from '../templates/prisma-setup.template';
+import { configurePrismaGenerator, ignoreGeneratedPrismaClient } from '../lib/configure-prisma-generator';
 
 const PM_CHOICES = ['npm', 'yarn', 'pnpm'];
 const DB_CHOICES = ['Mongoose', 'PostgreSQL', 'MySQL', 'SQLite'];
@@ -134,6 +135,7 @@ export const generateAppAction = async (appName: string, options: AppOptions = {
         if (isPrisma) {
             baseDeps.push(
                 '@prisma/client',
+                getPrismaAdapterPackage(database),
                 `@nest-extended/prisma@${nestExtendedVersion}`,
             );
         } else {
@@ -213,10 +215,15 @@ export const generateAppAction = async (appName: string, options: AppOptions = {
             });
         });
 
+        // Normalize the Prisma 7 client generator block for NestJS and keep the
+        // generated client out of version control.
+        configurePrismaGenerator(appDir);
+        ignoreGeneratedPrismaClient(appDir);
+
         // Create PrismaService and PrismaModule
         const prismaDir = path.join(appDir, 'src/prisma');
         fs.ensureDirSync(prismaDir);
-        fs.writeFileSync(path.join(prismaDir, 'prisma.service.ts'), getPrismaServiceFile());
+        fs.writeFileSync(path.join(prismaDir, 'prisma.service.ts'), getPrismaServiceFile(database));
         fs.writeFileSync(path.join(prismaDir, 'prisma.module.ts'), getPrismaModuleFile());
 
         // Update app.module.ts for Prisma
