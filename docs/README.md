@@ -30,6 +30,7 @@ All packages are published under the `@nest-extended/*` scope (currently
 | Core | `@nest-extended/core` | `NestController`, `NestExtendedModule`, `NullResponseInterceptor`, CLS helper, shared types | [packages/core/README.md](../packages/core/README.md) |
 | Mongoose | `@nest-extended/mongoose` | `NestService<M, D>` + Mongoose query utils + exception filters | [packages/mongoose/README.md](../packages/mongoose/README.md) |
 | Prisma | `@nest-extended/prisma` | `NestService<T>` for Prisma (PostgreSQL/MySQL/SQLite) + exception filters | [packages/prisma/README.md](../packages/prisma/README.md) |
+| TypeORM | `@nest-extended/typeorm` | `NestService<T>` for TypeORM (PostgreSQL/MySQL/SQLite) + exception filters | [packages/typeorm/README.md](../packages/typeorm/README.md) |
 | Decorators | `@nest-extended/decorators` | `@User`, `@Public`, `@ModifyBody`, `setCreatedBy` | [packages/decorators/README.md](../packages/decorators/README.md) |
 | CLI | `@nest-extended/cli` (binary `nest-cli`) | App / auth / resource scaffolding | [packages/cli/README.md](../packages/cli/README.md) |
 
@@ -41,10 +42,10 @@ All packages are published under the `@nest-extended/*` scope (currently
         ▼
 @nest-extended/core   ◄── NestExtendedModule, NestController, soft-delete types
         │
-        ├──────────────┬──────────────┐
-        ▼              ▼
-@nest-extended/    @nest-extended/
-   mongoose            prisma        ◄── NestService (generic CRUD per database)
+        ├──────────────┬──────────────┬──────────────┐
+        ▼              ▼              ▼
+@nest-extended/    @nest-extended/   @nest-extended/
+   mongoose            prisma           typeorm     ◄── NestService (generic CRUD per database)
 ```
 
 A typical app either:

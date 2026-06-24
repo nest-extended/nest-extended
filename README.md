@@ -9,7 +9,8 @@ This workspace contains the following packages:
 - **[@nest-extended/core](packages/core/README.md)**: Core utilities, decorators, and generic base classes for NestJS applications.
 - **[@nest-extended/mongoose](packages/mongoose/README.md)**: Mongoose-specific extensions, including a powerful `NestService` for CRUD operations and query helpers.
 - **[@nest-extended/prisma](packages/prisma/README.md)**: Prisma database adapter supporting PostgreSQL, MySQL, and SQLite with FeathersJS-style querying.
-- **[@nest-extended/cli](packages/cli/README.md)**: A CLI tool to generate boilerplate code (Modules, Services, Controllers, Schemas/Models, DTOs) ensuring best practices and satisfying dependencies.
+- **[@nest-extended/typeorm](packages/typeorm/README.md)**: TypeORM database adapter supporting PostgreSQL, MySQL, and SQLite with the same FeathersJS-style querying.
+- **[@nest-extended/cli](packages/cli/README.md)**: A CLI tool to generate boilerplate code (Modules, Services, Controllers, Schemas/Models/Entities, DTOs) ensuring best practices and satisfying dependencies.
 - **[@nest-extended/decorators](packages/decorators/README.md)**: Reusable decorators for standardizing controller and service behavior.
 
 ---
@@ -42,12 +43,12 @@ yarn add -D @nest-extended/cli
 
 ##### Generate Application (`g app`)
 
-Generates a fully configured NestJS application with your choice of database.
-It interactively prompts for database (Mongoose, PostgreSQL, MySQL, SQLite), validation library (`zod` or `class-validator`), and handles scaffolding the app. It also prompts whether you want to automatically generate authentication modules.
+Generates a fully configured NestJS application with your choice of database and ORM.
+It interactively prompts for a database (PostgreSQL, MySQL, SQLite, MongoDB), then an ORM (Prisma or TypeORM for SQL databases; Mongoose for MongoDB), a validation library (`zod` or `class-validator`), and handles scaffolding the app. It also prompts whether you want to automatically generate authentication modules.
 
 **Includes:**
 - Running `@nestjs/cli`'s `nest new` command internally
-- Database selection: **Mongoose** (MongoDB) or **Prisma** (PostgreSQL, MySQL, SQLite)
+- Database + ORM selection: **Mongoose** (MongoDB), **Prisma** (PostgreSQL/MySQL/SQLite), or **TypeORM** (PostgreSQL/MySQL/SQLite)
 - Context-mapping out of the box using `nestjs-cls`
 - Built-in `AuthModule` with JSON Web Token (JWT) handling via `@nestjs/jwt` and password hashing with `bcrypt` (opt-in)
 - Fully functional `UsersModule` equipped with standard fields and authentication logic (opt-in)
@@ -84,13 +85,13 @@ nest-cli generate auth
 
 Generates a complete resource bundle including:
 - **Module**: Registers the controller and service.
-- **Service**: Extends `NestService` from `@nest-extended/mongoose` or `@nest-extended/prisma` depending on database selection.
+- **Service**: Extends `NestService` from `@nest-extended/mongoose`, `@nest-extended/prisma`, or `@nest-extended/typeorm` depending on the ORM selection.
 - **Controller**: Standard CRUD controller.
-- **Schema/Model**: Mongoose schema or Prisma model (appended to `schema.prisma`) with soft delete fields.
+- **Schema/Model/Entity**: Mongoose schema, Prisma model (appended to `schema.prisma`), or TypeORM entity, all with soft delete fields.
 - **DTO**: Data Transfer Object with validation (Zod or class-validator, user selects during generation).
 - **Specs**: Unit tests for service and controller.
 
-The CLI prompts for database type and validation library, and auto-installs missing packages.
+The CLI prompts for database, ORM, and validation library, and auto-installs missing packages.
 
 Generated schemas use `select: false` on soft-delete/audit fields (`deleted`, `deletedAt`, `deletedBy`, `updatedBy`) to exclude them from queries by default.
 
@@ -256,6 +257,53 @@ const results = await this.catsService._find({
 
 ---
 
+### `@nest-extended/typeorm`
+
+This package provides powerful TypeORM integrations for the **NestExtended** ecosystem, with the same service layer, FeathersJS-style query language, pagination, soft delete, and exception filters as the Prisma/Mongoose packages. Supports **PostgreSQL**, **MySQL/MariaDB**, and **SQLite**.
+
+#### Key Features
+
+- **NestService**: A generic service class (`NestService<T>`) that provides:
+    - **CRUD Operations**: `_find`, `_get`, `_create`, `_patch`, `_remove`.
+    - **FeathersJS-Style Querying**: `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$like`, `$notLike`, `$iLike`, `$notILike`, `$or`, `$and` — translated to TypeORM `FindOperator`s.
+    - **Pagination**: Built-in pagination using `$skip` and `$limit`.
+    - **Soft Delete**: Configurable soft delete support.
+    - **Relations**: `$include` for eager-loading (maps to TypeORM `relations`).
+- **Exception Filters**:
+    - `GlobalExceptionFilter` for TypeORM `QueryFailedError`/`EntityNotFoundError`, Zod, and HTTP exceptions.
+    - `handleTypeOrmError` for translating driver error codes (PostgreSQL/MySQL/SQLite) to user-friendly messages.
+
+#### Usage
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { NestService } from '@nest-extended/typeorm';
+import { Cat } from './entities/cat.entity';
+
+@Injectable()
+export class CatsService extends NestService<Cat> {
+  constructor(@InjectRepository(Cat) repo: Repository<Cat>) {
+    super(repo);
+  }
+}
+```
+
+##### Querying
+
+```typescript
+const results = await this.catsService._find({
+  name: { $like: 'kitty' },
+  age: { $gt: 5 },
+  $sort: { createdAt: -1 },
+  $limit: 10,
+  $include: { owner: true }
+});
+```
+
+---
+
 ### `@nest-extended/decorators`
 
 This package provides useful decorators for NestJS applications.
@@ -321,6 +369,9 @@ yarn add @nest-extended/core @nest-extended/mongoose @nest-extended/decorators
 # For Prisma (PostgreSQL, MySQL, SQLite)
 yarn add @nest-extended/core @nest-extended/prisma @nest-extended/decorators
 
+# For TypeORM (PostgreSQL, MySQL, SQLite)
+yarn add @nest-extended/core @nest-extended/typeorm @nest-extended/decorators
+
 # CLI (recommended as dev dependency)
 yarn add -D @nest-extended/cli
 ```
@@ -343,7 +394,7 @@ Use the CLI to generate an entire pre-configured NestJS application:
 nest-cli g app my-app
 ```
 
-This will scaffold a new NestJS application with your choice of database (Mongoose, PostgreSQL, MySQL, or SQLite), `nestjs-cls` context mapping, soft-delete configuration, and an interactive prompt to optionally generate user/JWT authentication modules.
+This will scaffold a new NestJS application with your choice of database (PostgreSQL, MySQL, SQLite, or MongoDB) and ORM (Prisma or TypeORM for SQL; Mongoose for MongoDB), `nestjs-cls` context mapping, soft-delete configuration, and an interactive prompt to optionally generate user/JWT authentication modules.
 
 ### Generate Authentication
 

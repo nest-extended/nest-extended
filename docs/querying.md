@@ -6,8 +6,8 @@ sorting, pagination, projection, and relations. The same object can be expressed
 as an HTTP URL query string, because `NestExtendedModule` installs the
 [`qs`](https://github.com/ljharb/qs) parser on bootstrap.
 
-This guide covers both databases. The shape is FeathersJS-inspired and largely
-shared; where Mongoose and Prisma differ, both are shown.
+This guide covers all three data layers. The shape is FeathersJS-inspired and
+largely shared; where Mongoose, Prisma, and TypeORM differ, each is shown.
 
 ## How query strings become objects
 
@@ -33,17 +33,17 @@ parsed with `parseInt`/`Math.abs`).
 
 ## Special parameters
 
-| Parameter | Mongoose | Prisma | Meaning |
-|---|---|---|---|
-| `$limit` | ✅ | ✅ | Max rows to return (default `20`) |
-| `$skip` | ✅ | ✅ | Rows to skip (default `0`) |
-| `$sort` | ✅ | ✅ | Sort spec, e.g. `{ createdAt: -1 }` |
-| `$select` | ✅ | ✅ | Field projection (array / string / object) |
-| `$populate` | ✅ | — | Mongoose relation population |
-| `$include` | — | ✅ | Prisma relation eager-loading (the Prisma analogue of `$populate`) |
-| `$regex` | ✅ | — | Case-insensitive regex match (Mongoose) |
-| `$or` | ✅ | ✅ | Logical OR of sub-queries |
-| `$and` | — | ✅ | Logical AND of sub-queries |
+| Parameter | Mongoose | Prisma | TypeORM | Meaning |
+|---|---|---|---|---|
+| `$limit` | ✅ | ✅ | ✅ | Max rows to return (default `20`) |
+| `$skip` | ✅ | ✅ | ✅ | Rows to skip (default `0`) |
+| `$sort` | ✅ | ✅ | ✅ | Sort spec, e.g. `{ createdAt: -1 }` |
+| `$select` | ✅ | ✅ | ✅ | Field projection (array / string / object) |
+| `$populate` | ✅ | — | — | Mongoose relation population |
+| `$include` | — | ✅ | ✅ | Relation eager-loading (Prisma `include` / TypeORM `relations`; the analogue of `$populate`) |
+| `$regex` | ✅ | — | — | Case-insensitive regex match (Mongoose) |
+| `$or` | ✅ | ✅ | ✅ | Logical OR of sub-queries |
+| `$and` | — | ✅ | ✅ | Logical AND of sub-queries |
 
 ### `$limit` / `$skip` — pagination window
 
@@ -65,6 +65,7 @@ GET /product?$sort[createdAt]=-1&$sort[name]=1
 
 - **Mongoose** passes the parsed sort spec to `.sort()` (numeric values are `parseInt`ed).
 - **Prisma** converts it to `orderBy`: `-1`/`'-1'`/`'desc'` → `'desc'`, otherwise `'asc'`.
+- **TypeORM** converts it to `order`: `-1`/`'-1'`/`'desc'` → `'DESC'`, otherwise `'ASC'`.
 
 ### `$select` — projection
 
@@ -78,26 +79,30 @@ GET /product?$select[name]=1&$select[price]=1    # object
 
 - **Mongoose** array → `{ name: 1, price: 1 }`; a string or object is passed straight to `.select()`.
 - **Prisma** any form is normalized to `{ name: true, price: true }` for Prisma `select`.
+- **TypeORM** any form is normalized to `{ name: true, price: true }` for TypeORM `select`.
 
 > Fields declared `select: false` in a Mongoose schema (e.g. `password`,
 > `deleted`, `deletedAt`, audit fields) are excluded by default; request them
 > explicitly via `$select` if you need them.
 
-### `$populate` (Mongoose) / `$include` (Prisma) — relations
+### `$populate` (Mongoose) / `$include` (Prisma, TypeORM) — relations
 
 ```
 # Mongoose
 GET /product?$populate=owner
 GET /product?$populate[]=owner&$populate[]=category
 
-# Prisma
+# Prisma / TypeORM
 GET /product?$include[owner]=true
+GET /product?$include[]=owner&$include[]=category
 ```
 
 - **Mongoose** passes `$populate` to `.populate()` (string, object, or array).
 - **Prisma** passes `$include` to Prisma's `include`. If you use **both** `$select`
   and `$include`, Prisma forbids combining `select` + `include`, so the service
   merges the included relations into `select` for you.
+- **TypeORM** normalizes `$include` (array / string / object) to a `relations`
+  object (e.g. `{ owner: true }`) on the find-options.
 
 ### `$or` / `$and`
 
@@ -112,6 +117,7 @@ GET /product?$and[0][price][$gte]=10&$and[1][price][$lte]=100
 
 - **Mongoose** builds a native `$or` (each sub-query is recursively parsed). `$and` is not specially handled — use MongoDB's native nesting if required.
 - **Prisma** maps `$or` → `OR` and `$and` → `AND` (each sub-query recursively parsed).
+- **TypeORM** maps `$or` to an **array of `where` objects** (TypeORM's OR form) and `$and` to a single merged `where` object. Top-level fields are distributed across each OR branch — `{ status: 'active', $or: [{ a: 1 }, { b: 2 }] }` becomes `[{ status: 'active', a: 1 }, { status: 'active', b: 2 }]`.
 
 ### `$regex` (Mongoose only)
 
@@ -171,6 +177,32 @@ You can combine operators on one field: `?price[$gte]=10&price[$lte]=100` →
 > rely on `$like` (collation usually makes it case-insensitive) or normalize case
 > in your data.
 
+### TypeORM
+
+TypeORM uses the same FeathersJS-style operators, translated to TypeORM
+`FindOperator`s in the `where` clause:
+
+| Operator | TypeORM translation | Example |
+|---|---|---|
+| `$eq` | `Equal(value)` | `?status[$eq]=active` |
+| `$ne` | `Not(value)` | `?status[$ne]=archived` |
+| `$gt` | `MoreThan(value)` | `?price[$gt]=10` |
+| `$gte` | `MoreThanOrEqual(value)` | `?price[$gte]=10` |
+| `$lt` | `LessThan(value)` | `?price[$lt]=100` |
+| `$lte` | `LessThanOrEqual(value)` | `?price[$lte]=100` |
+| `$in` | `In([values])` | `?status[$in][]=a&status[$in][]=b` |
+| `$nin` | `Not(In([values]))` | `?status[$nin][]=a` |
+| `$like` | `Like('%value%')` | `?name[$like]=kit` |
+| `$notLike` | `Not(Like('%value%'))` | `?name[$notLike]=kit` |
+| `$iLike` | `ILike('%value%')` | `?name[$iLike]=kit` |
+| `$notILike` | `Not(ILike('%value%'))` | `?name[$notILike]=kit` |
+
+Combining operators on one field (`?price[$gte]=10&price[$lte]=100`) wraps them in
+TypeORM's `And(...)`: `{ price: And(MoreThanOrEqual('10'), LessThanOrEqual('100')) }`.
+
+> **`$iLike` / `$notILike` emit `ILIKE`, which is PostgreSQL-only.** On MySQL,
+> `$like` is usually case-insensitive (collation-dependent); on SQLite use `$like`.
+
 ## Pagination and the response envelope
 
 By default `_find` is paginated and returns an **envelope**:
@@ -202,14 +234,14 @@ option.
 the database query directly. They do **not** run the exported `cleanQuery` /
 `filterQuery` validators, so an **unknown `$`-prefixed parameter is silently
 ignored**, not rejected — Mongoose's `rawQuery` skips unrecognized `$` keys, and
-Prisma's skips unknown top-level `$` keys.
+the Prisma/TypeORM `rawQuery` skip unknown top-level `$` keys.
 
 If you want strict rejection of unknown operators (a `400 BadRequestException:
 Invalid query parameter: $foo`), apply the exported helpers yourself before
 calling the service:
 
 ```typescript
-import { filterQuery } from '@nest-extended/mongoose'; // or '@nest-extended/prisma'
+import { filterQuery } from '@nest-extended/mongoose'; // or '@nest-extended/prisma' / '@nest-extended/typeorm'
 
 const { query: cleaned } = filterQuery(req.query); // throws on unknown $ operators
 const result = await this.service._find(cleaned);
@@ -231,7 +263,10 @@ GET /product?$regex[name]=phone&price[$gte]=100&price[$lte]=500&$populate=owner
 # Prisma: case-insensitive name search (Postgres), include the owner relation
 GET /product?name[$iLike]=phone&$include[owner]=true
 
-# Either: match one of several statuses
+# TypeORM: name search with a price range, eager-load the owner relation
+GET /product?name[$like]=phone&price[$gte]=100&price[$lte]=500&$include[owner]=true
+
+# Any: match one of several statuses
 GET /product?status[$in][]=active&status[$in][]=draft
 ```
 

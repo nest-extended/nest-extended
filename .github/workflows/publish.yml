@@ -119,6 +119,28 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+  publish-typeorm:
+    name: Publish TypeORM
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Node Setup
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+      - name: Download Artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+      - name: Publish TypeORM
+        run: cd dist/packages/typeorm && npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
   publish-cli:
     name: Publish CLI
     needs: build

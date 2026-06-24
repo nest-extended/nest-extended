@@ -11,8 +11,9 @@ export const generateCommand = new Command('generate')
 generateCommand
     .command('service <name>')
     .description('Generate a new service')
-    .option('-d, --database <type>', 'Database type: Mongoose | PostgreSQL | MySQL | SQLite')
+    .option('-d, --database <type>', 'Database type: PostgreSQL | MySQL | SQLite | MongoDB')
     .option('--db <type>', 'Alias for --database')
+    .option('-o, --orm <type>', 'ORM/ODM: prisma | typeorm | mongoose')
     .option('-v, --validator <type>', 'Validation library: zod | class-validator')
     .action((name, options) => generateServiceAction(name, options));
 
@@ -21,8 +22,9 @@ generateCommand
     .description('Generate a new application')
     .option('-p, --pkg-manager <pm>', 'Package manager: npm | yarn | pnpm')
     .option('--pm <pm>', 'Alias for --pkg-manager')
-    .option('-d, --database <type>', 'Database type: Mongoose | PostgreSQL | MySQL | SQLite')
+    .option('-d, --database <type>', 'Database type: PostgreSQL | MySQL | SQLite | MongoDB')
     .option('--db <type>', 'Alias for --database')
+    .option('-o, --orm <type>', 'ORM/ODM: prisma | typeorm | mongoose')
     .option('-v, --validator <type>', 'Validation library: zod | class-validator')
     .option('--auth', 'Generate authentication modules (skips prompt)')
     .option('--skip-auth', 'Skip authentication modules (skips prompt)')

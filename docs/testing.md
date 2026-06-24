@@ -31,17 +31,21 @@ not compile, wire up, or behave correctly, the suite fails.
 ## What the suite does
 
 Source: [`../scripts/e2e/test-generated-app.ts`](../scripts/e2e/test-generated-app.ts).
-It covers all four supported databases: **SQLite**, **PostgreSQL**, **MySQL**
-(all Prisma), and **Mongoose**.
+It covers a **database × ORM matrix**: Prisma and TypeORM each over **SQLite**,
+**PostgreSQL**, **MySQL**, plus Mongoose over **MongoDB**. Each case is labelled
+`DB+orm` (e.g. `SQLite+typeorm`).
 
-For each database, in order:
+For each case, in order:
 
 1. Generate an app with auth:
-   `nest-cli g app <db>-app --db <DB> --validator zod --pm npm --auth`
+   `nest-cli g app <db>-<orm>-app --db <DB> --orm <ORM> --validator zod --pm npm --auth`
 2. Generate a CRUD resource:
-   `nest-cli g service product --db <DB> --validator zod`
-3. **Prisma databases only:** `npx prisma generate` then `npx prisma db push`
-   (retried up to 5 times — a freshly started DB can accept TCP before it accepts queries).
+   `nest-cli g service product --db <DB> --orm <ORM> --validator zod`
+3. **Prepare the schema:**
+   - Prisma: `npx prisma generate` then `npx prisma db push`
+   - TypeORM: `npm run db:sync` (the generated manual schema-sync script; `DB_SYNCHRONIZE` defaults to `false`)
+   - Mongoose: nothing
+   (Prisma/TypeORM prep is retried up to 5 times — a freshly started DB can accept TCP before it accepts queries.)
 4. Boot the server (`npm run start` on a dedicated port) and wait until it responds (up to 90s).
 5. Run the HTTP assertion suite, then kill the server.
 
@@ -63,9 +67,9 @@ Run against each booted app by `runApiSuite`:
 | 10 | `GET /product/:id` | 404 / null — the soft-deleted record is hidden |
 | 11 | `GET /users` | 200, list includes the registered user |
 
-The harness is **id-shape agnostic** (`_id` for Mongo, `id` for Prisma) and
+The harness is **id-shape agnostic** (`_id` for Mongo, `id` for Prisma/TypeORM) and
 **list-shape agnostic** (accepts a bare array or a `{ data: [...] }` pagination
-envelope), so the same checks run unchanged across databases. Assertions are
+envelope), so the same checks run unchanged across every case. Assertions are
 collected rather than aborting on the first failure, so one run reports every
 broken check.
 
@@ -75,18 +79,24 @@ From the repo root (the npm script wires up the TypeScript loader via
 `@swc-node/register`):
 
 ```bash
-# All four databases
+# Full matrix (Prisma + TypeORM + Mongoose)
 yarn test:e2e:generated
 
-# A single database (fast inner loop). SQLite needs no external services:
-yarn test:e2e:generated --db SQLite
-yarn test:e2e:generated --db PostgreSQL
-yarn test:e2e:generated --db MySQL
-yarn test:e2e:generated --db Mongoose
+# Narrow by database and/or ORM (either flag filters the matrix):
+yarn test:e2e:generated --db SQLite                # SQLite cases (Prisma + TypeORM); no external services
+yarn test:e2e:generated --orm typeorm              # all TypeORM cases
+yarn test:e2e:generated --db SQLite --orm typeorm  # a single case, fast inner loop
+yarn test:e2e:generated --db PostgreSQL --orm prisma
+yarn test:e2e:generated --db MongoDB               # Mongoose
 ```
 
-`--db` matches case-insensitively; an unknown value exits with code `2`. With no
-flag, all four run in order (SQLite, PostgreSQL, MySQL, Mongoose).
+`--db` and `--orm` match case-insensitively (the legacy `--db Mongoose` is accepted
+as `MongoDB`); an unknown value exits with code `2`. With no flag, the full matrix
+runs.
+
+> A newly-added runtime package must be **published** to npm before its cases can
+> run here — the generated app installs the `@nest-extended/*` packages from the
+> registry (this applies equally to the Prisma and Mongoose cases).
 
 ### Prerequisites
 
@@ -106,8 +116,8 @@ flag, all four run in order (SQLite, PostgreSQL, MySQL, Mongoose).
   |---|---|---|---|
   | SQLite | nothing (file-based) | — | — |
   | PostgreSQL | a server | `postgres:16` | 5432 |
-  | MySQL | a server | `mariadb:11` (compatible with the generated `@prisma/adapter-mariadb`) | 3306 |
-  | Mongoose | a server | `mongo:7` | 27017 |
+  | MySQL | a server | `mariadb:11` (compatible with both Prisma `@prisma/adapter-mariadb` and TypeORM `mysql2`) | 3306 |
+  | MongoDB | a server | `mongo:7` | 27017 |
 
   Container credentials (`user` / `password` / `mydb`) match the `DATABASE_URL` the
   generator writes, so the generated app connects to the same instance. If you want
@@ -119,22 +129,22 @@ The fastest reliable loop while iterating on templates is
 
 ## Reading the output
 
-- A per-database heading, then a `✓`/`✗` line per check, then a final **Summary**
-  listing each database as `PASS` / `FAIL` / `SKIP` (with `passed/total` counts).
-- **Generated apps are kept** under `.e2e-apps/<db>-app/` (gitignored) for
+- A per-case heading, then a `✓`/`✗` line per check, then a final **Summary**
+  listing each `DB+orm` case as `PASS` / `FAIL` / `SKIP` (with `passed/total` counts).
+- **Generated apps are kept** under `.e2e-apps/<db>-<orm>-app/` (gitignored) for
   inspection; each run recreates them fresh.
-- **Server logs** are written to `.e2e-apps/<db>-app.server.log` — check these
+- **Server logs** are written to `.e2e-apps/<db>-<orm>-app.server.log` — check these
   first when a server fails to start or a request behaves unexpectedly.
-- App-server **ports start at 3100** and increment per database, to avoid clashing
+- App-server **ports start at 3100** and increment per case, to avoid clashing
   with a dev server on 3000.
 
 ### Exit codes
 
 | Code | Meaning |
 |---|---|
-| `0` | Every non-skipped database passed all checks |
-| `1` | At least one database failed (or an unexpected error) |
-| `2` | Bad `--db` value, or the CLI could not be resolved/built |
+| `0` | Every non-skipped case passed all checks |
+| `1` | At least one case failed (or an unexpected error) |
+| `2` | Bad `--db`/`--orm` value (or no matching case), or the CLI could not be resolved/built |
 
 A `SKIP` (no database available) does **not** fail the run.
 

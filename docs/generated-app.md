@@ -5,13 +5,15 @@ API it exposes — including the optional authentication layer. For the flags th
 control generation, see [cli-reference.md](cli-reference.md). For the query
 language used by every list endpoint, see [querying.md](querying.md).
 
-The generator supports two database families that share the same API surface but
+The generator supports three data layers that share the same API surface but
 differ in a few details:
 
 - **Mongoose** (MongoDB) — uses `@nest-extended/mongoose`, document `_id`s.
 - **Prisma** (PostgreSQL / MySQL / SQLite) — uses `@nest-extended/prisma`, string `id`s (cuid).
+- **TypeORM** (PostgreSQL / MySQL / SQLite) — uses `@nest-extended/typeorm`, string `id`s (uuid).
 
-Differences are called out inline.
+You pick a database, then an ORM (SQL databases support Prisma or TypeORM; MongoDB
+uses Mongoose). Differences are called out inline.
 
 ---
 
@@ -21,13 +23,16 @@ A generated app is a standard NestJS app (created by `nest new`) plus:
 
 ```
 my-app/
-├── .env                          # MONGODB_URI or DATABASE_URL, JWT_SECRET
+├── .env                          # MONGODB_URI / DATABASE_URL / DATABASE_PATH, JWT_SECRET (+ DB_SYNCHRONIZE for TypeORM)
 ├── src/
 │   ├── app.module.ts             # rewritten by the generator (see below)
 │   ├── main.ts                   # stock Nest bootstrap (listens on PORT || 3000)
 │   ├── prisma/                   # Prisma databases only
 │   │   ├── prisma.service.ts     # extends PrismaClient, wires the driver adapter
 │   │   └── prisma.module.ts      # @Global() module exporting PrismaService
+│   ├── database/                 # TypeORM databases only
+│   │   ├── data-source.ts        # shared DataSource (used by the TypeORM CLI)
+│   │   └── database.module.ts    # TypeOrmModule.forRoot (autoLoadEntities, DB_SYNCHRONIZE)
 │   ├── schemas/                  # Mongoose only
 │   │   ├── users.schema.ts       # with auth
 │   │   └── <resource>.schema.ts  # per `g service`
@@ -42,11 +47,13 @@ my-app/
 │       │   ├── users.module.ts
 │       │   ├── users.service.ts
 │       │   ├── users.controller.ts
+│       │   ├── entities/users.entity.ts   # TypeORM only
 │       │   └── dto/users.dto.ts
 │       └── <resource>/           # per `g service`
 │           ├── <resource>.module.ts
 │           ├── <resource>.service.ts
 │           ├── <resource>.controller.ts
+│           ├── entities/<resource>.entity.ts   # TypeORM only
 │           ├── <resource>.service.spec.ts
 │           ├── <resource>.controller.spec.ts
 │           └── dto/<resource>.dto.ts
@@ -65,8 +72,8 @@ array. The wired-up modules are:
 | `ConfigModule.forRoot({ envFilePath: ['.env'], isGlobal: true })` | Loads `.env` globally |
 | `ClsModule.forRoot({ global: true, middleware: { mount: true } })` | Continuation-Local Storage; the `AuthGuard` stores the user here so `@User()` / `getCurrentUser()` work |
 | `NestExtendedModule.forRoot({ softDelete: {...}, filters: [] })` | Installs the `qs` query parser on bootstrap; holds the soft-delete config (see note below) |
-| `MongooseModule.forRoot(process.env.MONGODB_URI \|\| 'mongodb://localhost:27017/test')` *(Mongoose)* or `PrismaModule` *(Prisma)* | Database connection |
-| `APP_FILTER` → `GlobalExceptionFilter` | From `@nest-extended/mongoose` or `@nest-extended/prisma` |
+| `MongooseModule.forRoot(...)` *(Mongoose)*, `PrismaModule` *(Prisma)*, or `DatabaseModule` *(TypeORM)* | Database connection |
+| `APP_FILTER` → `GlobalExceptionFilter` | From `@nest-extended/mongoose`, `@nest-extended/prisma`, or `@nest-extended/typeorm` |
 | `APP_INTERCEPTOR` → `NullResponseInterceptor` | Turns `null`/`undefined` GET results into `404` |
 | `AuthModule`, `UsersModule` | Only when generated with auth |
 
@@ -74,6 +81,7 @@ The `softDelete` block the generator writes into `NestExtendedModule.forRoot`:
 
 - **Mongoose:** `getQuery: () => ({ deleted: { $ne: true } })`, `getData: (user) => ({ deleted: true, deletedAt: new Date(), [deletedBy: user?._id] })`
 - **Prisma:** `getQuery: () => ({ deleted: { not: true } })`, `getData: (user) => ({ deleted: true, deletedAt: new Date(), [deletedBy: user?.id] })`
+- **TypeORM:** `getQuery: () => ({ deleted: { $ne: true } })` (converted to `{ deleted: Not(true) }`), `getData: (user) => ({ deleted: true, deletedAt: new Date(), [deletedBy: user?.id] })`
 
 > **Where soft-delete config actually takes effect:** the generated services call
 > `super(model)` with no config, so the soft-delete behavior at runtime comes from
@@ -92,9 +100,13 @@ The generated `.env`:
 | Variable | Databases | Default written |
 |---|---|---|
 | `MONGODB_URI` | Mongoose | `mongodb://localhost:27017/test` |
-| `DATABASE_URL` | PostgreSQL | `postgresql://user:password@localhost:5432/mydb?schema=public` |
-| `DATABASE_URL` | MySQL | `mysql://user:password@localhost:3306/mydb` |
-| `DATABASE_URL` | SQLite | `file:./dev.db` |
+| `DATABASE_URL` | Prisma PostgreSQL | `postgresql://user:password@localhost:5432/mydb?schema=public` |
+| `DATABASE_URL` | Prisma MySQL | `mysql://user:password@localhost:3306/mydb` |
+| `DATABASE_URL` | Prisma SQLite | `file:./dev.db` |
+| `DATABASE_URL` | TypeORM PostgreSQL | `postgresql://user:password@localhost:5432/mydb` |
+| `DATABASE_URL` | TypeORM MySQL | `mysql://user:password@localhost:3306/mydb` |
+| `DATABASE_PATH` | TypeORM SQLite | `dev.db` |
+| `DB_SYNCHRONIZE` | TypeORM | `false` (set `true` to auto-create/update tables on boot) |
 | `JWT_SECRET` | any (used by auth) | `super-secret-jwt-key` |
 
 `JWT_SECRET` is read by `src/services/auth/constants/jwt-constants.ts`; if unset it
@@ -111,6 +123,10 @@ cd my-app
 # Prisma databases only — create the schema first:
 npx prisma generate
 npx prisma db push
+
+# TypeORM databases only — create the schema first (DB_SYNCHRONIZE defaults to false):
+npm run db:sync
+# (or set DB_SYNCHRONIZE=true in .env to auto-sync on boot)
 
 npm run start        # or yarn start / pnpm start  -> http://localhost:3000
 ```
@@ -131,6 +147,31 @@ adapter is chosen per database:
 | PostgreSQL | `@prisma/adapter-pg` | `PrismaPg` |
 | MySQL | `@prisma/adapter-mariadb` | `PrismaMariaDb` |
 | SQLite | `@prisma/adapter-better-sqlite3` | `PrismaBetterSqlite3` |
+
+### TypeORM data source & schema sync
+
+For TypeORM apps the generator creates `src/database/data-source.ts` (a shared
+`DataSource` the TypeORM CLI uses) and `src/database/database.module.ts`
+(`TypeOrmModule.forRoot` with `autoLoadEntities: true`). Each resource registers
+its entity via `TypeOrmModule.forFeature([<Entity>])`.
+
+Schema creation is controlled by **`DB_SYNCHRONIZE`** (default `false`):
+
+- `false` — tables are **not** created automatically. Create them with
+  `npm run db:sync` (a one-shot `typeorm schema:sync`), or use migrations
+  (`npm run migration:generate <path>`, `npm run migration:run`).
+- `true` — `synchronize`/`migrationsRun` run on boot, auto-creating/updating tables.
+
+The driver package is chosen per database:
+
+| Database | Driver package | TypeORM `type` |
+|---|---|---|
+| PostgreSQL | `pg` | `postgres` |
+| MySQL/MariaDB | `mysql2` | `mysql` |
+| SQLite | `better-sqlite3` | `better-sqlite3` |
+
+> **Production:** prefer real migrations over `synchronize`. Leave
+> `DB_SYNCHRONIZE=false` and run `migration:run` as part of your deploy.
 
 ---
 
@@ -254,6 +295,23 @@ Prisma codes translated by `handlePrismaError`: `P2002` (unique constraint),
 `P2003` (foreign key), `P2025` (record not found), `P2014` (relation violation),
 `P2000` (value too long), `P2006` (invalid value), `P2011` (null constraint),
 `P2024` (pool timeout), `P2021` (table missing), `P2022` (column missing).
+
+**TypeORM (`@nest-extended/typeorm`):**
+
+| Exception | Response |
+|---|---|
+| `HttpException` | passthrough |
+| `QueryFailedError` | `400` with a human message mapped from the driver error code |
+| `EntityNotFoundError` | `404` record-not-found message |
+| `ZodError` | `400` |
+| Anything else | `500` `{ statusCode, timestamp, error: { name, message, stack }, path }` |
+
+`handleTypeOrmError` maps driver error codes across PostgreSQL (SQLSTATE),
+MySQL/MariaDB (errno) and SQLite (string codes): unique violation
+(`23505`/`1062`/`SQLITE_CONSTRAINT_UNIQUE`), foreign key
+(`23503`/`1452`/`SQLITE_CONSTRAINT_FOREIGNKEY`), not-null
+(`23502`/`1048`/`SQLITE_CONSTRAINT_NOTNULL`), check constraint, value-too-long,
+and undefined table/column.
 
 > In both filters the `500` branch and (Prisma) error `details` include the stack
 > / raw message only when `NODE_ENV !== 'production'`. The Mongoose filter's `500`

@@ -55,6 +55,7 @@ nest-extended/
 │   ├── core/                 ← @nest-extended/core
 │   ├── mongoose/             ← @nest-extended/mongoose
 │   ├── prisma/               ← @nest-extended/prisma
+│   ├── typeorm/              ← @nest-extended/typeorm
 │   ├── cli/                  ← @nest-extended/cli
 │   └── decorators/           ← @nest-extended/decorators
 ├── .agents/                  ← Agent skills (Nx generators, workspaces, etc.)
@@ -73,6 +74,7 @@ These are all the README files in the repository. Read these for detailed featur
 | Core | [`packages/core/README.md`](packages/core/README.md) |
 | Mongoose | [`packages/mongoose/README.md`](packages/mongoose/README.md) |
 | Prisma | [`packages/prisma/README.md`](packages/prisma/README.md) |
+| TypeORM | [`packages/typeorm/README.md`](packages/typeorm/README.md) |
 | CLI | [`packages/cli/README.md`](packages/cli/README.md) |
 | Decorators | [`packages/decorators/README.md`](packages/decorators/README.md) |
 
@@ -339,7 +341,87 @@ packages/prisma/src/
 
 ---
 
-### 4.4 `@nest-extended/cli`
+### 4.4 `@nest-extended/typeorm`
+
+**Path**: `packages/typeorm/`
+**NPM**: `@nest-extended/typeorm`
+**Dependencies**: `tslib`, `@nest-extended/core`, `zod`, `typeorm` (peer), `@nestjs/typeorm` (peer), `@nestjs/common` (peer), `lodash` (peer)
+
+Same API surface and FeathersJS-style query language as the Prisma/Mongoose adapters. Supports PostgreSQL, MySQL/MariaDB, SQLite.
+
+#### Source Layout
+
+```
+packages/typeorm/src/
+├── index.ts                          ← Public exports
+├── lib/
+│   └── nest.service.ts               ← NestService<T> generic service over a TypeORM Repository
+├── common/
+│   ├── query.utils.ts                ← rawQuery, assignFilters, filterQuery, cleanQuery, FILTERS, OPERATORS
+│   └── apply-filters.ts             ← applyFilters() query helper
+├── filters/
+│   ├── global-exception.filter.ts   ← GlobalExceptionFilter (catch-all, TypeORM-aware)
+│   └── typeorm-error.filter.ts      ← handleTypeOrmError (driver error code translator)
+└── types/
+    └── TypeOrmFilters.ts            ← TypeOrmFilters, TypeOrmFilterOptions interfaces
+```
+
+#### NestService — Full Method Reference
+
+Same methods/signatures as Prisma: `_find`, `_get`, `_create`, `_patch`, `_remove`, `getCount`.
+
+**Constructor**: `new NestService(repository, serviceOptions?, softDeleteConfig?)`
+- `repository`: TypeORM `Repository<T>` (inject via `@InjectRepository(Entity)`)
+- `serviceOptions`: `{ multi: false, softDelete: true, pagination: true }` (defaults)
+- `softDeleteConfig`: defaults to `{ deleted: { $ne: true } }` (converted to `{ deleted: Not(true) }`)
+
+#### Query Operators (FeathersJS-style → TypeORM)
+
+| Operator | TypeORM Translation |
+|---|---|
+| `$eq` | `Equal(value)` |
+| `$ne` | `Not(value)` |
+| `$gt/$gte/$lt/$lte` | `MoreThan/MoreThanOrEqual/LessThan/LessThanOrEqual(value)` |
+| `$in/$nin` | `In([values])` / `Not(In([values]))` |
+| `$like/$notLike` | `Like('%value%')` / `Not(Like('%value%'))` |
+| `$iLike/$notILike` | `ILike('%value%')` / `Not(ILike('%value%'))` (PostgreSQL) |
+| `$or` | array of `where` objects (TypeORM OR); base fields distributed across branches |
+| `$and` | merged into a single `where` object |
+
+Multiple operators on one field combine via `And(...)`.
+
+#### Query Special Parameters
+
+| Param | Effect |
+|---|---|
+| `$sort` | `{ createdAt: -1 }` → `order: { createdAt: 'DESC' }` |
+| `$limit` | maps to `take` (default: 20) |
+| `$skip` | maps to `skip` (default: 0) |
+| `$select` | array/string/object → `select: { field: true }` |
+| `$include` | array/string/object → `relations: { relation: true }` |
+
+#### Exception Filters
+
+**`GlobalExceptionFilter`** — handles `HttpException`, `QueryFailedError` (driver codes), `EntityNotFoundError` (→ 404), `ZodError`, unknown (→ 500, stack hidden in production).
+
+**`handleTypeOrmError`** maps driver codes: unique (`23505`/`1062`/`SQLITE_CONSTRAINT_UNIQUE`), foreign key (`23503`/`1452`/`SQLITE_CONSTRAINT_FOREIGNKEY`), not-null (`23502`/`1048`/`SQLITE_CONSTRAINT_NOTNULL`), check, value-too-long, undefined table/column.
+
+#### Exported API
+
+| Export | Kind | Description |
+|---|---|---|
+| `NestService<T>` | Class | Generic CRUD service for TypeORM |
+| `applyFilters` | Function | Apply $select/$include/$sort/$limit/$skip to TypeORM find-options |
+| `rawQuery` | Function | Convert FeathersJS-style query to a TypeORM `where` clause |
+| `assignFilters` / `filterQuery` / `cleanQuery` | Functions | Filter extraction / parsing / validation |
+| `FILTERS` / `OPERATORS` | Object / Array | Filter converters / valid operator list |
+| `GlobalExceptionFilter` | Filter | Catch-all exception handler (TypeORM-aware) |
+| `handleTypeOrmError` | Function | TypeORM/driver error message translator |
+| `TypeOrmFilters` / `TypeOrmFilterOptions` | Interfaces | Filter / pagination-defaults types |
+
+---
+
+### 4.5 `@nest-extended/cli`
 
 **Path**: `packages/cli/`
 **NPM**: `@nest-extended/cli`
@@ -360,18 +442,19 @@ packages/cli/src/
 ├── lib/
 │   ├── create-file.ts               ← File creation utility
 │   ├── update-app-module.ts         ← Auto-update app.module.ts imports & module array
-│   └── generate-auth-services.ts    ← Auth/Users file generation orchestrator
+│   ├── configure-prisma-generator.ts ← Normalize the Prisma 7 generator block + gitignore
+│   ├── resolve-orm.ts               ← Two-step database+ORM resolution (`--db`/`--orm` + prompts)
+│   ├── generate-auth-services.ts    ← Mongoose Auth/Users file generation
+│   ├── generate-prisma-auth-services.ts  ← Prisma Auth/Users files + Users model
+│   └── generate-typeorm-auth-services.ts ← TypeORM Auth/Users files + Users entity
 └── templates/
-    ├── module.template.ts           ← NestJS module with MongooseModule.forFeature
-    ├── service.template.ts          ← NestService extension
-    ├── controller.template.ts       ← Controller with CRUD + decorators
+    ├── module.template.ts / service.template.ts / controller.template.ts ← Mongoose variants
     ├── schema.template.ts           ← Mongoose schema with soft delete + auth fields
-    ├── dto.template.ts              ← Zod validation schemas (Create, Patch, Remove)
-    ├── dto-class-validator.template.ts ← class-validator DTOs (Create, Patch, Remove)
-    ├── service.spec.template.ts     ← Service unit test
-    ├── controller.spec.template.ts  ← Controller unit test
-    ├── auth.template.ts             ← Auth module/service/controller/guard/constants
-    └── users.template.ts            ← Users schema/service/controller
+    ├── dto.template.ts / dto-class-validator.template.ts ← Zod / class-validator DTOs
+    ├── service.spec.template.ts / controller.spec.template.ts ← unit tests (shared)
+    ├── auth.template.ts / users.template.ts ← Mongoose auth + users
+    ├── prisma-*.template.ts         ← Prisma variants (model/service/module/controller/dto/setup/auth/users)
+    └── typeorm-*.template.ts        ← TypeORM variants (entity/service/module/controller/dto/setup/auth/users)
 ```
 
 #### CLI Commands Reference
@@ -389,18 +472,17 @@ packages/cli/src/
 
 When generating a new app, the CLI:
 1. Runs `nest new` via `@nestjs/cli`
-2. Prompts for validation library: `zod` or `class-validator`
-3. Installs: `@nestjs/mongoose`, `mongoose`, `@nestjs/config`, `nestjs-cls`, `@nest-extended/core`, `@nest-extended/mongoose`, `@nest-extended/decorators`, and the selected validator (`zod` or `class-validator` + `class-transformer`)
-4. Optionally installs: `@nestjs/jwt`, `bcrypt`, `@types/bcrypt`
-4. Configures `app.module.ts` with:
-   - `ConfigModule.forRoot()` (global, reads `.env`)
-   - `ClsModule.forRoot()` (global, middleware mount)
-   - `NestExtendedModule.forRoot()` (soft delete config)
-   - `MongooseModule.forRoot()` (from `MONGODB_URI` env or fallback)
-   - `GlobalExceptionFilter` (APP_FILTER)
-   - `NullResponseInterceptor` (APP_INTERCEPTOR)
-5. Generates `.env` file with `MONGODB_URI` and `JWT_SECRET`
-6. Optionally generates Auth and Users modules
+2. Resolves the **database** (`PostgreSQL`/`MySQL`/`SQLite`/`MongoDB`) then the **ORM** (`prisma`/`typeorm` for SQL, `mongoose` for MongoDB) — two-step prompt, or `--db`/`--orm` flags. SQL with no `--orm` defaults to Prisma.
+3. Prompts for validation library: `zod` or `class-validator`
+4. Installs the base set + the ORM set:
+   - Mongoose: `@nestjs/mongoose`, `mongoose`, `@nest-extended/mongoose`
+   - Prisma: `@prisma/client`, a driver adapter, `@nest-extended/prisma` (dev `prisma`)
+   - TypeORM: `@nestjs/typeorm`, `typeorm`, `dotenv`, a driver (`pg`/`mysql2`/`better-sqlite3`), `@nest-extended/typeorm` (dev `ts-node`)
+5. Optionally installs: `@nestjs/jwt`, `bcrypt`, `@types/bcrypt`
+6. Configures `app.module.ts` with `ConfigModule`, `ClsModule`, `NestExtendedModule.forRoot()` (soft delete config), the database module (`MongooseModule.forRoot()` / `PrismaModule` / `DatabaseModule`), the matching `GlobalExceptionFilter` (APP_FILTER), and `NullResponseInterceptor` (APP_INTERCEPTOR)
+7. Prisma: runs `prisma init` + writes `PrismaService`/`PrismaModule`. TypeORM: writes `src/database/data-source.ts` + `database.module.ts` and `db:sync`/`migration:*` scripts (`DB_SYNCHRONIZE` defaults to `false`).
+8. Generates `.env` (`MONGODB_URI` / `DATABASE_URL` / `DATABASE_PATH` + `DB_SYNCHRONIZE`) and `JWT_SECRET`
+9. Optionally generates Auth and Users modules (Mongoose/Prisma/TypeORM variants)
 
 #### `g auth` — Generated Auth Files
 
@@ -456,7 +538,7 @@ Currently handles:
 
 ---
 
-### 4.5 `@nest-extended/decorators`
+### 4.6 `@nest-extended/decorators`
 
 **Path**: `packages/decorators/`
 **NPM**: `@nest-extended/decorators`
@@ -497,6 +579,7 @@ yarn nx run-many -t build
 # Build a single package
 yarn nx build core
 yarn nx build prisma
+yarn nx build typeorm
 yarn nx build mongoose
 yarn nx build cli
 yarn nx build decorators
@@ -515,7 +598,7 @@ Build output: `dist/packages/<name>/`
 ```bash
 # 1. Bump version across all packages
 node scripts/release.js <version>
-# This updates version in all 5 package.json files,
+# This updates version in all 6 package.json files,
 # syncs internal dependency versions,
 # creates a git commit and tag
 
@@ -524,7 +607,7 @@ git push && git push --tags
 ```
 
 The `release.js` script:
-- Updates `version` in root and all 4 package `package.json` files
+- Updates `version` in root and all 6 package `package.json` files
 - Syncs internal dependency versions (`@nest-extended/core`, etc.)
 - Commits with message `chore: release v<version>`
 - Creates git tag `v<version>`
@@ -538,7 +621,7 @@ The `release.js` script:
 
 **Publish** (`.github/workflows/publish.yml`):
 - Triggers: push tags `v*`
-- Steps: build job → 4 parallel publish jobs (core, mongoose, cli, decorators)
+- Steps: build job → 6 parallel publish jobs (core, mongoose, prisma, typeorm, cli, decorators)
 - Publishes to NPM with `--access public`
 - Requires `NPM_TOKEN` secret
 
@@ -558,7 +641,8 @@ The `release.js` script:
   "@nest-extended/core": ["packages/core/src/index.ts"],
   "@nest-extended/decorators": ["packages/decorators/src/index.ts"],
   "@nest-extended/mongoose": ["packages/mongoose/src/index.ts"],
-  "@nest-extended/prisma": ["packages/prisma/src/index.ts"]
+  "@nest-extended/prisma": ["packages/prisma/src/index.ts"],
+  "@nest-extended/typeorm": ["packages/typeorm/src/index.ts"]
 }
 ```
 
@@ -591,11 +675,11 @@ The `release.js` script:
 @nest-extended/decorators  (standalone — no internal deps)
         ↑
 @nest-extended/core  (depends on decorators)
-        ↑                    ↑
-@nest-extended/mongoose      @nest-extended/prisma
-(depends on core)            (depends on core)
+        ↑                    ↑                    ↑
+@nest-extended/mongoose  @nest-extended/prisma  @nest-extended/typeorm
+(depends on core)        (depends on core)      (depends on core)
 
-@nest-extended/cli  (standalone — generates code that uses core, mongoose/prisma, decorators)
+@nest-extended/cli  (standalone — generates code that uses core, mongoose/prisma/typeorm, decorators)
 ```
 
 ---
@@ -622,7 +706,9 @@ The `release.js` script:
 | What | Where |
 |---|---|
 | NestController source | `packages/core/src/lib/nest.controller.ts` |
-| NestService source | `packages/mongoose/src/lib/nest.service.ts` |
+| NestService (Mongoose) | `packages/mongoose/src/lib/nest.service.ts` |
+| NestService (Prisma) | `packages/prisma/src/lib/nest.service.ts` |
+| NestService (TypeORM) | `packages/typeorm/src/lib/nest.service.ts` |
 | NestExtendedModule | `packages/core/src/lib/nest-extended.module.ts` |
 | Soft delete config type | `packages/core/src/types/nest-extended.config.ts` |
 | CLS helper | `packages/core/src/common/cls.helper.ts` |
@@ -646,6 +732,12 @@ The `release.js` script:
 | Schema template | `packages/cli/src/templates/schema.template.ts` |
 | DTO template | `packages/cli/src/templates/dto.template.ts` |
 | Module template | `packages/cli/src/templates/module.template.ts` |
+| Prisma templates | `packages/cli/src/templates/prisma-*.template.ts` |
+| TypeORM templates | `packages/cli/src/templates/typeorm-*.template.ts` |
+| TypeORM query utils | `packages/typeorm/src/common/query.utils.ts` |
+| TypeORM error handler | `packages/typeorm/src/filters/typeorm-error.filter.ts` |
+| Database+ORM resolver | `packages/cli/src/lib/resolve-orm.ts` |
+| TypeORM auth generator | `packages/cli/src/lib/generate-typeorm-auth-services.ts` |
 | @User decorator | `packages/decorators/src/User.decorator.ts` |
 | @Public decorator | `packages/decorators/src/Public.decorator.ts` |
 | @ModifyBody decorator | `packages/decorators/src/ModifyBody.decorator.ts` |

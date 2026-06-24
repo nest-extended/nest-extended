@@ -8,9 +8,11 @@
  * the *emitted* code still boots and serves working endpoints.
  *
  * Usage (via the npm script, which wires up the TS loader):
- *   yarn test:e2e:generated                 # both DBs (SQLite + Mongoose)
- *   yarn test:e2e:generated --db SQLite      # SQLite only (zero external deps)
- *   yarn test:e2e:generated --db Mongoose    # Mongoose only (needs MongoDB/Docker)
+ *   yarn test:e2e:generated                       # full matrix (Prisma + TypeORM + Mongoose)
+ *   yarn test:e2e:generated --db SQLite            # SQLite cases (Prisma + TypeORM, zero external deps)
+ *   yarn test:e2e:generated --orm typeorm          # all TypeORM cases
+ *   yarn test:e2e:generated --db SQLite --orm typeorm  # one case, no external services
+ *   yarn test:e2e:generated --db MongoDB           # Mongoose only (needs MongoDB/Docker)
  *
  * Assumes `nest-cli` is on PATH (globally linked). See scripts/e2e/README.md.
  */
@@ -39,8 +41,25 @@ const RESOURCE = 'product'; // generated CRUD resource → @Controller('product'
 const SERVER_READY_TIMEOUT_MS = 90_000;
 const DB_READY_TIMEOUT_MS = 120_000; // Postgres/MySQL/Mongo container start can be slow
 
-type DbType = 'SQLite' | 'PostgreSQL' | 'MySQL' | 'Mongoose';
-const ALL_DATABASES: DbType[] = ['SQLite', 'PostgreSQL', 'MySQL', 'Mongoose'];
+type DbType = 'SQLite' | 'PostgreSQL' | 'MySQL' | 'MongoDB';
+type Orm = 'prisma' | 'typeorm' | 'mongoose';
+interface RunCase { db: DbType; orm: Orm; }
+
+const ALL_DATABASES: DbType[] = ['SQLite', 'PostgreSQL', 'MySQL', 'MongoDB'];
+const ALL_ORMS: Orm[] = ['prisma', 'typeorm', 'mongoose'];
+
+/** The full (database × ORM) matrix the harness can exercise. */
+const ALL_CASES: RunCase[] = [
+  { db: 'SQLite', orm: 'prisma' },
+  { db: 'PostgreSQL', orm: 'prisma' },
+  { db: 'MySQL', orm: 'prisma' },
+  { db: 'SQLite', orm: 'typeorm' },
+  { db: 'PostgreSQL', orm: 'typeorm' },
+  { db: 'MySQL', orm: 'typeorm' },
+  { db: 'MongoDB', orm: 'mongoose' },
+];
+
+const caseLabel = (c: RunCase): string => `${c.db}+${c.orm}`;
 
 /**
  * A Docker-backed database server the harness can provision on demand. The
@@ -48,7 +67,7 @@ const ALL_DATABASES: DbType[] = ['SQLite', 'PostgreSQL', 'MySQL', 'Mongoose'];
  * generated app's .env, so the generated app connects to the same instance:
  *   PostgreSQL → postgresql://user:password@localhost:5432/mydb?schema=public
  *   MySQL      → mysql://user:password@localhost:3306/mydb
- *   Mongoose   → mongodb://localhost:27017/test  (no auth)
+ *   MongoDB    → mongodb://localhost:27017/test  (no auth)
  * SQLite is file-based and has no entry here.
  */
 interface DbServer {
@@ -80,7 +99,7 @@ const DB_SERVERS: Partial<Record<DbType, DbServer>> = {
     ],
     readyCmd: ['healthcheck.sh', '--connect', '--innodb_initialized'],
   },
-  Mongoose: {
+  MongoDB: {
     container: 'nest-e2e-mongo',
     image: 'mongo:7',
     port: 27017,
@@ -96,7 +115,7 @@ interface HttpResult {
 }
 
 interface RunResult {
-  db: DbType;
+  label: string;
   status: 'PASS' | 'FAIL' | 'SKIP';
   passed?: number;
   total?: number;
@@ -433,28 +452,29 @@ async function runApiSuite(port: number): Promise<ReturnType<typeof makeSuite>> 
 // ---------------------------------------------------------------------------
 // Per-DB run: generate → prep → boot → test → teardown
 // ---------------------------------------------------------------------------
-async function runForDatabase(db: DbType, port: number): Promise<RunResult> {
-  const appName = `${db.toLowerCase()}-app`;
+async function runForCase(c: RunCase, port: number): Promise<RunResult> {
+  const label = caseLabel(c);
+  const appName = `${c.db.toLowerCase()}-${c.orm}-app`;
   const appDir = path.join(APPS_DIR, appName);
   const logPath = path.join(APPS_DIR, `${appName}.server.log`);
 
-  heading(`Database: ${db}  (app: .e2e-apps/${appName}, port: ${port})`);
+  heading(`Case: ${label}  (app: .e2e-apps/${appName}, port: ${port})`);
 
   // Fresh app dir each run, kept afterward.
   if (existsSync(appDir)) rmSync(appDir, { recursive: true, force: true });
 
   // 1. Generate app (cwd = APPS_DIR so the app lands inside .e2e-apps/)
-  info(`Generating app with auth (${db})...`);
-  await nestCli(['g', 'app', appName, '--db', db, '--validator', 'zod', '--pm', 'npm', '--auth'],
+  info(`Generating app with auth (${label})...`);
+  await nestCli(['g', 'app', appName, '--db', c.db, '--orm', c.orm, '--validator', 'zod', '--pm', 'npm', '--auth'],
     { cwd: APPS_DIR });
 
   // 2. Generate CRUD resource (cwd = app dir)
   info(`Generating CRUD resource "${RESOURCE}"...`);
-  await nestCli(['g', 'service', RESOURCE, '--db', db, '--validator', 'zod'], { cwd: appDir });
+  await nestCli(['g', 'service', RESOURCE, '--db', c.db, '--orm', c.orm, '--validator', 'zod'], { cwd: appDir });
 
-  // 3. DB prep (Prisma databases: SQLite / PostgreSQL / MySQL)
-  if (db !== 'Mongoose') {
-    info(`Generating Prisma client and pushing schema (${db})...`);
+  // 3. DB prep
+  if (c.orm === 'prisma') {
+    info(`Generating Prisma client and pushing schema (${label})...`);
     await run('npx', ['prisma', 'generate'], { cwd: appDir });
     // Retry db push: a freshly-started server can accept TCP before it accepts queries.
     let pushed = false;
@@ -468,6 +488,21 @@ async function runForDatabase(db: DbType, port: number): Promise<RunResult> {
         await sleep(3000);
       }
     }
+  } else if (c.orm === 'typeorm') {
+    // DB_SYNCHRONIZE defaults to false in the generated app, so create the
+    // schema manually via the generated `db:sync` script (exercises that path).
+    info(`Syncing TypeORM schema via "npm run db:sync" (${label})...`);
+    let synced = false;
+    for (let attempt = 1; attempt <= 5 && !synced; attempt++) {
+      try {
+        await run('npm', ['run', 'db:sync'], { cwd: appDir });
+        synced = true;
+      } catch (err) {
+        if (attempt === 5) throw err;
+        warn(`db:sync failed (attempt ${attempt}/5), retrying in 3s...`);
+        await sleep(3000);
+      }
+    }
   }
 
   // 4. Boot server
@@ -478,7 +513,7 @@ async function runForDatabase(db: DbType, port: number): Promise<RunResult> {
     const ready = await waitForServer(port, server, SERVER_READY_TIMEOUT_MS);
     if (!ready) {
       warn(`Server did not become ready within ${SERVER_READY_TIMEOUT_MS / 1000}s. See ${logPath}`);
-      return { db, status: 'FAIL', reason: 'server not ready' };
+      return { label, status: 'FAIL', reason: 'server not ready' };
     }
     info('Server ready. Running API assertions:');
     // 5. Run assertions
@@ -491,7 +526,7 @@ async function runForDatabase(db: DbType, port: number): Promise<RunResult> {
 
   const failed = suite.failures.length;
   const status = failed === 0 ? 'PASS' : 'FAIL';
-  return { db, status, passed: suite.total - failed, total: suite.total };
+  return { label, status, passed: suite.total - failed, total: suite.total };
 }
 
 /**
@@ -526,20 +561,45 @@ async function ensureCli(): Promise<void> {
 // Main
 // ---------------------------------------------------------------------------
 async function main(): Promise<void> {
-  // Parse --db flag
+  // Parse --db / --orm flags (either or both narrow the matrix).
   const args = process.argv.slice(2);
-  let requested: string | null = null;
-  const dbIdx = args.indexOf('--db');
-  if (dbIdx !== -1 && args[dbIdx + 1]) requested = args[dbIdx + 1];
+  const flag = (name: string): string | null => {
+    const idx = args.indexOf(name);
+    return idx !== -1 && args[idx + 1] ? args[idx + 1] : null;
+  };
 
-  let matrix: DbType[] = ALL_DATABASES;
-  if (requested) {
-    const match = ALL_DATABASES.find((d) => d.toLowerCase() === requested!.toLowerCase());
+  const dbRequested = flag('--db');
+  const ormRequested = flag('--orm');
+
+  let dbFilter: DbType | null = null;
+  if (dbRequested) {
+    const match = ALL_DATABASES.find((d) => d.toLowerCase() === dbRequested.toLowerCase())
+      // Accept the legacy `Mongoose` alias for the MongoDB case.
+      || (dbRequested.toLowerCase() === 'mongoose' ? 'MongoDB' : undefined);
     if (!match) {
-      console.error(`${C.red}Unknown --db "${requested}". Valid: ${ALL_DATABASES.join(', ')}${C.reset}`);
+      console.error(`${C.red}Unknown --db "${dbRequested}". Valid: ${ALL_DATABASES.join(', ')}${C.reset}`);
       process.exit(2);
     }
-    matrix = [match];
+    dbFilter = match as DbType;
+  }
+
+  let ormFilter: Orm | null = null;
+  if (ormRequested) {
+    const match = ALL_ORMS.find((o) => o === ormRequested.toLowerCase());
+    if (!match) {
+      console.error(`${C.red}Unknown --orm "${ormRequested}". Valid: ${ALL_ORMS.join(', ')}${C.reset}`);
+      process.exit(2);
+    }
+    ormFilter = match;
+  }
+
+  let matrix = ALL_CASES;
+  if (dbFilter) matrix = matrix.filter((c) => c.db === dbFilter);
+  if (ormFilter) matrix = matrix.filter((c) => c.orm === ormFilter);
+
+  if (matrix.length === 0) {
+    console.error(`${C.red}No cases match --db "${dbRequested}" --orm "${ormRequested}".${C.reset}`);
+    process.exit(2);
   }
 
   heading('NestExtended generated-app E2E test');
@@ -552,24 +612,25 @@ async function main(): Promise<void> {
   const summary: RunResult[] = [];
   let port = 3100;
 
-  for (const db of matrix) {
+  for (const c of matrix) {
+    const label = caseLabel(c);
     // Provision the database server (no-op for SQLite).
-    const server = await ensureServer(db);
+    const server = await ensureServer(c.db);
     if (!server.ready) {
-      warn(`Skipping ${db} run — no database available.`);
-      summary.push({ db, status: 'SKIP' });
+      warn(`Skipping ${label} run — no database available.`);
+      summary.push({ label, status: 'SKIP' });
       continue;
     }
     try {
-      const result = await runForDatabase(db, port);
+      const result = await runForCase(c, port);
       summary.push(result);
     } catch (err) {
-      warn(`${db} run errored: ${(err as Error).message}`);
-      summary.push({ db, status: 'FAIL', reason: (err as Error).message });
+      warn(`${label} run errored: ${(err as Error).message}`);
+      summary.push({ label, status: 'FAIL', reason: (err as Error).message });
     } finally {
       if (server.startedContainer) {
-        info(`Stopping ${db} container...`);
-        stopServer(db);
+        info(`Stopping ${c.db} container...`);
+        stopServer(c.db);
       }
       port += 1;
     }
@@ -584,7 +645,7 @@ async function main(): Promise<void> {
     let color = C.green;
     if (r.status === 'FAIL') { color = C.red; anyFail = true; }
     else if (r.status === 'SKIP') color = C.yellow;
-    log(`  ${color}${r.db}: ${r.status}${C.reset}${counts}${reason}`);
+    log(`  ${color}${r.label}: ${r.status}${C.reset}${counts}${reason}`);
   }
 
   process.exit(anyFail ? 1 : 0);

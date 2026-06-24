@@ -10,8 +10,8 @@ There are two ways to use NestExtended. Pick the one that matches your situation
 - **Node.js 20+** (the CI and the generated-app E2E harness target Node 20; the E2E harness relies on the global `fetch` added in Node 18+).
 - A package manager: **npm**, **yarn**, or **pnpm**.
 - A database, depending on your choice:
-  - **Mongoose** → a MongoDB reachable at `mongodb://localhost:27017/test` (or set `MONGODB_URI`).
-  - **PostgreSQL / MySQL / SQLite** (via Prisma) → a reachable server for PostgreSQL/MySQL; SQLite needs nothing (file-based).
+  - **MongoDB** (Mongoose) → a MongoDB reachable at `mongodb://localhost:27017/test` (or set `MONGODB_URI`).
+  - **PostgreSQL / MySQL / SQLite** (via **Prisma** or **TypeORM**) → a reachable server for PostgreSQL/MySQL; SQLite needs nothing (file-based).
 
 > **Binary name:** `@nest-extended/cli` installs a binary called **`nest-cli`**.
 > This is *not* the NestJS `nest` binary from `@nestjs/cli`. The two coexist; this
@@ -40,8 +40,13 @@ nest-cli g app my-app
 Non-interactive (every choice supplied as a flag — useful for CI/scripts):
 
 ```bash
-nest-cli g app my-app --db Mongoose --validator zod --pm npm --auth
+nest-cli g app my-app --db MongoDB   --orm mongoose --validator zod --pm npm --auth
+nest-cli g app my-app --db PostgreSQL --orm typeorm  --validator zod --pm npm --auth
+nest-cli g app my-app --db PostgreSQL --orm prisma   --validator zod --pm npm --auth
 ```
+
+You choose a **database** and then an **ORM** — SQL databases (PostgreSQL/MySQL/SQLite)
+work with **Prisma or TypeORM**; MongoDB uses **Mongoose**.
 
 This runs `@nestjs/cli`'s `nest new` under the hood, installs the NestExtended
 packages plus your database/validator/auth dependencies, and rewrites
@@ -54,9 +59,12 @@ packages plus your database/validator/auth dependencies, and rewrites
 The generator writes a `.env` in the new app:
 
 - **Mongoose** → `MONGODB_URI=mongodb://localhost:27017/test`
-- **PostgreSQL** → `DATABASE_URL="postgresql://user:password@localhost:5432/mydb?schema=public"`
-- **MySQL** → `DATABASE_URL="mysql://user:password@localhost:3306/mydb"`
-- **SQLite** → `DATABASE_URL="file:./dev.db"`
+- **Prisma PostgreSQL** → `DATABASE_URL="postgresql://user:password@localhost:5432/mydb?schema=public"`
+- **Prisma MySQL** → `DATABASE_URL="mysql://user:password@localhost:3306/mydb"`
+- **Prisma SQLite** → `DATABASE_URL="file:./dev.db"`
+- **TypeORM PostgreSQL / MySQL** → `DATABASE_URL="postgresql://..."` / `"mysql://..."`
+- **TypeORM SQLite** → `DATABASE_PATH=dev.db`
+- **TypeORM (any)** → `DB_SYNCHRONIZE=false`
 
 Edit `.env` to match your actual database, or start one that matches these values.
 
@@ -66,6 +74,14 @@ For **Prisma** databases you must create the schema before the first run:
 cd my-app
 npx prisma generate
 npx prisma db push
+```
+
+For **TypeORM** databases create the schema before the first run (`DB_SYNCHRONIZE`
+defaults to `false`):
+
+```bash
+cd my-app
+npm run db:sync     # or set DB_SYNCHRONIZE=true in .env to auto-sync on boot
 ```
 
 ### 4. Run it
@@ -100,11 +116,12 @@ in [generated-app.md](generated-app.md).
 
 ```bash
 cd my-app
-nest-cli g service product --db Mongoose --validator zod
+nest-cli g service product --db PostgreSQL --orm typeorm --validator zod
 ```
 
-This generates a module/service/controller/schema (or Prisma model)/DTO/specs and
-registers the module in `app.module.ts`. See
+Use the **same `--db`/`--orm`** as the app. This generates a
+module/service/controller/DTO/specs plus the storage definition (Mongoose schema,
+Prisma model, or TypeORM entity) and registers the module in `app.module.ts`. See
 [cli-reference.md](cli-reference.md#nest-cli-g-service-name) for details.
 
 ---
@@ -126,11 +143,14 @@ yarn add @nest-extended/core @nest-extended/mongoose @nest-extended/decorators n
 
 # Prisma (PostgreSQL / MySQL / SQLite)
 yarn add @nest-extended/core @nest-extended/prisma @nest-extended/decorators nestjs-cls
+
+# TypeORM (PostgreSQL / MySQL / SQLite)
+yarn add @nest-extended/core @nest-extended/typeorm @nest-extended/decorators nestjs-cls
 ```
 
-You should already have `@nestjs/common`, `@nestjs/core`, and either
-`@nestjs/mongoose` + `mongoose` or `@prisma/client` (+ a Prisma driver adapter)
-installed as part of your app.
+You should already have `@nestjs/common`, `@nestjs/core`, and your data layer:
+`@nestjs/mongoose` + `mongoose`, **or** `@prisma/client` (+ a Prisma driver adapter),
+**or** `@nestjs/typeorm` + `typeorm` (+ a driver such as `pg` / `mysql2` / `better-sqlite3`).
 
 > **Note:** `@nest-extended/core` imports from `@nest-extended/decorators` at
 > runtime, but does not list it as a dependency — install `@nest-extended/decorators`
@@ -148,7 +168,7 @@ import { Module } from '@nestjs/common';
 import { ClsModule } from 'nestjs-cls';
 import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { NestExtendedModule, NullResponseInterceptor } from '@nest-extended/core';
-import { GlobalExceptionFilter } from '@nest-extended/mongoose'; // or '@nest-extended/prisma'
+import { GlobalExceptionFilter } from '@nest-extended/mongoose'; // or '@nest-extended/prisma' / '@nest-extended/typeorm'
 
 @Module({
   imports: [
@@ -204,6 +224,23 @@ import { PrismaService } from './prisma/prisma.service';
 export class CatsService extends NestService<any> {
   constructor(private readonly prisma: PrismaService) {
     super(prisma.cat); // pass the Prisma delegate
+  }
+}
+```
+
+**TypeORM:**
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { NestService } from '@nest-extended/typeorm';
+import { Cat } from './entities/cat.entity';
+
+@Injectable()
+export class CatsService extends NestService<Cat> {
+  constructor(@InjectRepository(Cat) repo: Repository<Cat>) {
+    super(repo); // pass the TypeORM repository
   }
 }
 ```

@@ -21,6 +21,14 @@ import { getPrismaDto } from '../templates/prisma-dto.template';
 import { getPrismaDtoClassValidator } from '../templates/prisma-dto-class-validator.template';
 import { getPrismaServiceFile, getPrismaModuleFile, getPrismaAdapterPackage } from '../templates/prisma-setup.template';
 import { configurePrismaGenerator, ignoreGeneratedPrismaClient } from '../lib/configure-prisma-generator';
+import { getTypeOrmEntity } from '../templates/typeorm-entity.template';
+import { getTypeOrmService } from '../templates/typeorm-service.template';
+import { getTypeOrmModule } from '../templates/typeorm-module.template';
+import { getTypeOrmController } from '../templates/typeorm-controller.template';
+import { getTypeOrmDto } from '../templates/typeorm-dto.template';
+import { getTypeOrmDtoClassValidator } from '../templates/typeorm-dto-class-validator.template';
+import { getDataSourceFile, getDatabaseModuleFile, getTypeOrmDriverPackage } from '../templates/typeorm-setup.template';
+import { resolveDatabaseAndOrm, SqlProvider } from '../lib/resolve-orm';
 
 /**
  * Detect the package manager used in the project.
@@ -141,6 +149,26 @@ const ensurePrismaSetup = async (projectDir: string, dbType: string): Promise<vo
 };
 
 /**
+ * Ensure the shared TypeORM DataSource and DatabaseModule exist.
+ */
+const ensureTypeOrmSetup = (projectDir: string, provider: SqlProvider): void => {
+    const dbDir = path.join(projectDir, 'src/database');
+    const dataSourcePath = path.join(dbDir, 'data-source.ts');
+    const databaseModulePath = path.join(dbDir, 'database.module.ts');
+
+    fs.ensureDirSync(dbDir);
+
+    if (!fs.existsSync(dataSourcePath)) {
+        fs.writeFileSync(dataSourcePath, getDataSourceFile(provider));
+        console.log(chalk.green('Created src/database/data-source.ts'));
+    }
+    if (!fs.existsSync(databaseModulePath)) {
+        fs.writeFileSync(databaseModulePath, getDatabaseModuleFile());
+        console.log(chalk.green('Created src/database/database.module.ts'));
+    }
+};
+
+/**
  * Append a Prisma model to schema.prisma if it doesn't already exist.
  */
 const appendPrismaModel = (projectDir: string, Name: string, isAuthGenerated: boolean): void => {
@@ -164,10 +192,9 @@ const appendPrismaModel = (projectDir: string, Name: string, isAuthGenerated: bo
     console.log(chalk.green(`Added model ${Name} to prisma/schema.prisma`));
 };
 
-const DB_CHOICES = ['Mongoose', 'PostgreSQL', 'MySQL', 'SQLite'];
 const VALIDATOR_CHOICES = ['zod', 'class-validator'];
 
-interface ServiceOptions { database?: string; db?: string; validator?: string; }
+interface ServiceOptions { database?: string; db?: string; orm?: string; validator?: string; }
 
 export const generateServiceAction = async (rawName: string, options: ServiceOptions = {}) => {
     const parts = rawName.split('/');
@@ -185,24 +212,8 @@ export const generateServiceAction = async (rawName: string, options: ServiceOpt
     const fullPath = dirPath ? `${dirPath}/${name}` : name;
     const targetDir = `src/services/${fullPath}`;
 
-    // Resolve --database / --db / -d
-    let databaseType: string = options.database || options.db || '';
-    if (databaseType && !DB_CHOICES.includes(databaseType)) {
-        console.error(chalk.red(`Invalid --database "${databaseType}". Valid options: ${DB_CHOICES.join(', ')}`));
-        process.exit(1);
-    }
-    if (!databaseType) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
-        const answer = await inquirer.prompt([{
-            type: 'list',
-            name: 'databaseType',
-            message: 'Which database would you like to use?',
-            choices: DB_CHOICES,
-            default: 'Mongoose',
-        }]);
-        databaseType = answer.databaseType;
-    }
+    // Resolve --database / --db and --orm (two-step prompt when not supplied).
+    const { database, orm, sqlProvider } = await resolveDatabaseAndOrm(options);
 
     // Resolve --validator / -v
     let validatorType: string = options.validator || '';
@@ -224,7 +235,6 @@ export const generateServiceAction = async (rawName: string, options: ServiceOpt
     }
 
     const projectDir = process.cwd();
-    const isPrisma = databaseType !== 'Mongoose';
 
     // Ensure required validator packages are installed
     if (validatorType === 'zod') {
@@ -234,17 +244,21 @@ export const generateServiceAction = async (rawName: string, options: ServiceOpt
     }
 
     // Ensure database-specific packages are installed
-    if (isPrisma) {
-        await ensurePackagesInstalled(projectDir, ['@prisma/client', getPrismaAdapterPackage(databaseType), '@nest-extended/prisma']);
+    if (orm === 'prisma') {
+        await ensurePackagesInstalled(projectDir, ['@prisma/client', getPrismaAdapterPackage(database), '@nest-extended/prisma']);
         await ensureDevPackagesInstalled(projectDir, ['prisma']);
-        await ensurePrismaSetup(projectDir, databaseType);
+        await ensurePrismaSetup(projectDir, database);
+    } else if (orm === 'typeorm') {
+        await ensurePackagesInstalled(projectDir, ['@nestjs/typeorm', 'typeorm', 'dotenv', getTypeOrmDriverPackage(sqlProvider as string), '@nest-extended/typeorm']);
+        await ensureDevPackagesInstalled(projectDir, ['ts-node']);
+        ensureTypeOrmSetup(projectDir, sqlProvider as SqlProvider);
     }
 
-    console.log(`Generating service for: ${Name} (${fullPath}) using ${databaseType}`);
+    console.log(`Generating service for: ${Name} (${fullPath}) using ${database} (${orm})`);
 
     const isAuthGenerated = fs.existsSync(path.join(projectDir, 'src/services/auth'));
 
-    if (isPrisma) {
+    if (orm === 'prisma') {
         // --- Prisma-based generation ---
 
         // Generate DTO
@@ -257,6 +271,19 @@ export const generateServiceAction = async (rawName: string, options: ServiceOpt
         createFileWithContent(`${targetDir}/${name}.module.ts`, getPrismaModule(Name, name));
         createFileWithContent(`${targetDir}/${name}.service.ts`, getPrismaService(Name, name));
         createFileWithContent(`${targetDir}/${name}.controller.ts`, getPrismaController(Name, name, rawName));
+        createFileWithContent(`${targetDir}/dto/${name}.dto.ts`, dtoContent);
+        createFileWithContent(`${targetDir}/${name}.service.spec.ts`, getServiceSpec(Name, name));
+        createFileWithContent(`${targetDir}/${name}.controller.spec.ts`, getControllerSpec(Name, name));
+
+    } else if (orm === 'typeorm') {
+        // --- TypeORM-based generation ---
+
+        const dtoContent = validatorType === 'zod' ? getTypeOrmDto(Name) : getTypeOrmDtoClassValidator(Name);
+
+        createFileWithContent(`${targetDir}/entities/${name}.entity.ts`, getTypeOrmEntity(Name, name, isAuthGenerated));
+        createFileWithContent(`${targetDir}/${name}.module.ts`, getTypeOrmModule(Name, name));
+        createFileWithContent(`${targetDir}/${name}.service.ts`, getTypeOrmService(Name, name));
+        createFileWithContent(`${targetDir}/${name}.controller.ts`, getTypeOrmController(Name, name, rawName));
         createFileWithContent(`${targetDir}/dto/${name}.dto.ts`, dtoContent);
         createFileWithContent(`${targetDir}/${name}.service.spec.ts`, getServiceSpec(Name, name));
         createFileWithContent(`${targetDir}/${name}.controller.spec.ts`, getControllerSpec(Name, name));
