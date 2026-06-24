@@ -14,10 +14,11 @@ It covers a **database × ORM matrix**:
 
 Each case is identified by a `DB+orm` label (e.g. `SQLite+typeorm`).
 
-> **Note:** the generated app installs the published `@nest-extended/*` runtime
-> packages from npm, so a newly-added/unpublished ORM package (e.g. a first
-> `@nest-extended/typeorm` release) must be **published** before its cases can run
-> here — this is the same constraint that applies to the Prisma and Mongoose cases.
+> **Note:** by default the generated app installs the published `@nest-extended/*`
+> packages from npm, so a not-yet-published runtime package (e.g. a first
+> `@nest-extended/typeorm` release) can't be exercised that way. Pass **`--local`**
+> to pack the workspace packages from the current build and install them via
+> `file:` tarballs instead — see Usage below.
 
 ## What it does (per case)
 
@@ -48,10 +49,11 @@ Each case is identified by a `DB+orm` label (e.g. `SQLite+typeorm`).
 ## Prerequisites
 
 - **Node 20+** (uses the built-in global `fetch`).
-- **The generator** — the script prefers a globally-linked `nest-cli`; if none is
-  on PATH it automatically builds the CLI from the current source
-  (`nx build cli`) and runs `dist/packages/cli/src/index.js`. No linking
-  required. (If you *do* link, make sure it reflects your current source.)
+- **The generator** — the script **builds the CLI from the current source**
+  (`nx build cli`) and runs `dist/packages/cli/src/index.js`, so it always tests
+  this checkout (never a stale globally-linked `nest-cli`). Set
+  `E2E_USE_GLOBAL_CLI=1` to force the globally-linked `nest-cli` instead; if the
+  build can't be produced it falls back to a global link when present.
 - **Database servers** — needed for the server-backed DBs. For each, the script
   uses an existing instance on the standard port if present, otherwise starts a
   throwaway Docker container (and removes it afterward). If neither a local
@@ -82,7 +84,15 @@ yarn test:e2e:generated --orm typeorm             # all TypeORM cases
 yarn test:e2e:generated --db SQLite --orm typeorm # one case, zero external services (fast inner loop)
 yarn test:e2e:generated --db PostgreSQL --orm prisma
 yarn test:e2e:generated --db MongoDB              # Mongoose
+
+# Validate the LOCAL build (and packages not yet published, e.g. a new @nest-extended/typeorm):
+yarn test:e2e:generated --orm typeorm --local
+yarn test:e2e:generated --db SQLite --orm typeorm --local   # no external services
 ```
+
+`--local` builds all packages, `npm pack`s each `@nest-extended/*` into
+`.e2e-apps/.local-packages/`, and makes the generated apps install them via
+`file:` tarballs (instead of the registry) by setting `NEST_EXTENDED_LOCAL_DIR`.
 
 If you want the Docker-backed DBs to run, make sure the Docker daemon is up
 first (e.g. `open -a Docker` on macOS).

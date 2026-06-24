@@ -94,18 +94,29 @@ yarn test:e2e:generated --db MongoDB               # Mongoose
 as `MongoDB`); an unknown value exits with code `2`. With no flag, the full matrix
 runs.
 
-> A newly-added runtime package must be **published** to npm before its cases can
-> run here — the generated app installs the `@nest-extended/*` packages from the
-> registry (this applies equally to the Prisma and Mongoose cases).
+By default the generated app installs the `@nest-extended/*` packages from the
+**npm registry**, so a not-yet-published runtime package (e.g. a brand-new
+`@nest-extended/typeorm`) can't be exercised that way. Use **`--local`** to pack
+the workspace's packages from the current build and install them via `file:`
+tarballs instead — validating the local source and unpublished packages:
+
+```bash
+yarn test:e2e:generated --orm typeorm --local            # all TypeORM cases, local build
+yarn test:e2e:generated --db SQLite --orm typeorm --local  # one case, no external services
+```
+
+`--local` runs `nx run-many -t build`, `npm pack`s each `@nest-extended/*` package
+into `.e2e-apps/.local-packages/<name>.tgz`, and sets `NEST_EXTENDED_LOCAL_DIR` so
+the generator installs from those tarballs.
 
 ### Prerequisites
 
 - **Node 20+** — the harness uses the built-in global `fetch`.
-- **The generator.** The harness prefers a globally-linked `nest-cli` on `PATH`.
-  If none is found it builds the CLI from current source (`nx build cli`) and runs
-  `dist/packages/cli/src/index.js` directly — no linking required. (If you *do*
-  link `nest-cli`, make sure it reflects your current source, or the test
-  validates stale code.) A failed build or missing dist exits with code `2`.
+- **The generator.** The harness **builds the CLI from current source**
+  (`nx build cli`) and runs `dist/packages/cli/src/index.js` directly, so it
+  always validates this checkout rather than a stale globally-linked `nest-cli`.
+  Set `E2E_USE_GLOBAL_CLI=1` to force the global link instead. If the build can't
+  be produced and no global link exists, it exits with code `2`.
 - **Database servers** for the non-SQLite databases. For each, the harness uses an
   existing instance on the standard port if one is reachable; otherwise it starts
   a throwaway Docker container (`docker run --rm`) and removes it afterward. If

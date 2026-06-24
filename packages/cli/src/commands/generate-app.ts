@@ -10,6 +10,7 @@ import { getPrismaServiceFile, getPrismaModuleFile, getPrismaAdapterPackage } fr
 import { getDataSourceFile, getDatabaseModuleFile, getTypeOrmDriverPackage } from '../templates/typeorm-setup.template';
 import { configurePrismaGenerator, ignoreGeneratedPrismaClient } from '../lib/configure-prisma-generator';
 import { resolveDatabaseAndOrm } from '../lib/resolve-orm';
+import { nestExtendedDep } from '../lib/local-packages';
 
 const PM_CHOICES = ['npm', 'yarn', 'pnpm'];
 const VALIDATOR_CHOICES = ['zod', 'class-validator'];
@@ -110,15 +111,15 @@ export const generateAppAction = async (appName: string, options: AppOptions = {
             '@nestjs/config',
             'nestjs-cls',
             'qs',
-            `@nest-extended/core@${nestExtendedVersion}`,
-            `@nest-extended/decorators@${nestExtendedVersion}`,
+            nestExtendedDep('core', nestExtendedVersion),
+            nestExtendedDep('decorators', nestExtendedVersion),
         ];
 
         if (orm === 'prisma') {
             baseDeps.push(
                 '@prisma/client',
                 getPrismaAdapterPackage(database),
-                `@nest-extended/prisma@${nestExtendedVersion}`,
+                nestExtendedDep('prisma', nestExtendedVersion),
             );
         } else if (orm === 'typeorm') {
             baseDeps.push(
@@ -126,13 +127,13 @@ export const generateAppAction = async (appName: string, options: AppOptions = {
                 'typeorm',
                 'dotenv',
                 getTypeOrmDriverPackage(sqlProvider as string),
-                `@nest-extended/typeorm@${nestExtendedVersion}`,
+                nestExtendedDep('typeorm', nestExtendedVersion),
             );
         } else {
             baseDeps.push(
                 '@nestjs/mongoose',
                 'mongoose',
-                `@nest-extended/mongoose@${nestExtendedVersion}`,
+                nestExtendedDep('mongoose', nestExtendedVersion),
             );
         }
 

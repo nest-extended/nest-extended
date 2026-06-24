@@ -19,7 +19,7 @@
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { createConnection } from 'node:net';
-import { existsSync, mkdirSync, rmSync, createWriteStream } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, renameSync, createWriteStream } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
 
@@ -374,8 +374,13 @@ async function runApiSuite(port: number): Promise<ReturnType<typeof makeSuite>> 
   const request = makeClient(port);
   const suite = makeSuite();
 
-  const email = `e2e+${port}@example.com`;
+  // Unique per run so re-runs against a reused/persistent DB never collide on
+  // the unique email, and the "list contains it" checks can filter to this run's
+  // own records (immune to rows accumulated by earlier runs + pagination).
+  const unique = `${port}-${Date.now()}`;
+  const email = `e2e+${unique}@example.com`;
   const password = 'Passw0rd!';
+  const productName = `Test Product ${unique}`;
 
   // 1. Register / create user in DB
   const reg = await request('POST', '/users', {
@@ -407,13 +412,13 @@ async function runApiSuite(port: number): Promise<ReturnType<typeof makeSuite>> 
     unauth.status === 401, `status=${unauth.status}`);
 
   // 5. Create resource
-  const created = await request('POST', `/${RESOURCE}`, { token, body: { name: 'Test Product' } });
+  const created = await request('POST', `/${RESOURCE}`, { token, body: { name: productName } });
   suite.check(`POST /${RESOURCE} creates a record (201 + id)`,
     created.status === 201 && idOf(created.body), `status=${created.status}`);
   const recordId = idOf(created.body);
 
-  // 6. List
-  const list = await request('GET', `/${RESOURCE}`, { token });
+  // 6. List (filtered to this run's record — immune to rows left by earlier runs)
+  const list = await request('GET', `/${RESOURCE}?name=${encodeURIComponent(productName)}`, { token });
   suite.check(`GET /${RESOURCE} lists the created record`,
     list.status === 200 && asArray(list.body).some((r) => idOf(r) === recordId),
     `status=${list.status}`);
@@ -421,7 +426,7 @@ async function runApiSuite(port: number): Promise<ReturnType<typeof makeSuite>> 
   // 7. Get one
   const getOne = await request('GET', `/${RESOURCE}/${recordId}`, { token });
   suite.check(`GET /${RESOURCE}/:id returns the record`,
-    getOne.status === 200 && (getOne.body as AnyRecord)?.name === 'Test Product',
+    getOne.status === 200 && (getOne.body as AnyRecord)?.name === productName,
     `status=${getOne.status}`);
 
   // 8. Patch
@@ -440,8 +445,8 @@ async function runApiSuite(port: number): Promise<ReturnType<typeof makeSuite>> 
   suite.check(`GET /${RESOURCE}/:id no longer returns the deleted record`,
     gone, `status=${afterDelete.status}, body=${JSON.stringify(afterDelete.body)?.slice(0, 60)}`);
 
-  // 11. List users includes the registered user
-  const users = await request('GET', '/users', { token });
+  // 11. List users includes the registered user (filtered to this run's email)
+  const users = await request('GET', `/users?email=${encodeURIComponent(email)}`, { token });
   suite.check('GET /users includes the registered user',
     users.status === 200 && asArray(users.body).some((u) => idOf(u) === userId),
     `status=${users.status}`);
@@ -477,10 +482,13 @@ async function runForCase(c: RunCase, port: number): Promise<RunResult> {
     info(`Generating Prisma client and pushing schema (${label})...`);
     await run('npx', ['prisma', 'generate'], { cwd: appDir });
     // Retry db push: a freshly-started server can accept TCP before it accepts queries.
+    // `--accept-data-loss`: the e2e database is throwaway and may be a reused
+    // container carrying schema from a prior run — let push reconcile it. (The
+    // suite uses unique per-run identifiers, so leftover *rows* don't collide.)
     let pushed = false;
     for (let attempt = 1; attempt <= 5 && !pushed; attempt++) {
       try {
-        await run('npx', ['prisma', 'db', 'push'], { cwd: appDir });
+        await run('npx', ['prisma', 'db', 'push', '--accept-data-loss'], { cwd: appDir });
         pushed = true;
       } catch (err) {
         if (attempt === 5) throw err;
@@ -491,6 +499,8 @@ async function runForCase(c: RunCase, port: number): Promise<RunResult> {
   } else if (c.orm === 'typeorm') {
     // DB_SYNCHRONIZE defaults to false in the generated app, so create the
     // schema manually via the generated `db:sync` script (exercises that path).
+    // (Leftover rows from a prior run don't matter: the suite uses unique
+    // per-run identifiers and filters its list checks to its own records.)
     info(`Syncing TypeORM schema via "npm run db:sync" (${label})...`);
     let synced = false;
     for (let attempt = 1; attempt <= 5 && !synced; attempt++) {
@@ -529,32 +539,85 @@ async function runForCase(c: RunCase, port: number): Promise<RunResult> {
   return { label, status, passed: suite.total - failed, total: suite.total };
 }
 
+/** The internal workspace packages that generated apps install. */
+const NE_PACKAGES = ['core', 'decorators', 'mongoose', 'prisma', 'typeorm'];
+
 /**
- * Resolve how to invoke the generator. Prefers a globally-linked `nest-cli`;
- * otherwise falls back to the locally-built dist entry, building it on demand.
+ * `--local` mode: build every workspace package and `npm pack` it into a temp
+ * directory, then expose that dir via `NEST_EXTENDED_LOCAL_DIR`. The generator
+ * (see `lib/local-packages.ts`) then installs `@nest-extended/*` from those
+ * tarballs instead of the registry — so the e2e validates the **current source**
+ * of the runtime packages, and can exercise packages that aren't published yet.
+ */
+async function packLocalPackages(): Promise<string> {
+  info('Building all packages for --local (nx run-many -t build)...');
+  await run('npx', ['nx', 'run-many', '-t', 'build'], { cwd: REPO_ROOT });
+
+  const dir = path.join(APPS_DIR, '.local-packages');
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+
+  for (const name of NE_PACKAGES) {
+    const distDir = path.join(REPO_ROOT, 'dist', 'packages', name);
+    if (!existsSync(distDir)) {
+      warn(`dist for ${name} not found at ${distDir}; skipping pack.`);
+      continue;
+    }
+    const res = spawnSync('npm', ['pack', '--pack-destination', dir], { cwd: distDir, encoding: 'utf8' });
+    if (res.status !== 0) {
+      throw new Error(`npm pack failed for ${name}: ${res.stderr || res.stdout}`);
+    }
+    const produced = res.stdout.trim().split('\n').map((s) => s.trim()).filter(Boolean).pop();
+    if (!produced) throw new Error(`npm pack produced no tarball for ${name}`);
+    renameSync(path.join(dir, produced), path.join(dir, `${name}.tgz`));
+  }
+
+  info(`Packed @nest-extended/* into ${path.relative(REPO_ROOT, dir)} (installed via file:).`);
+  return dir;
+}
+
+/**
+ * Resolve how to invoke the generator. Builds the CLI from the **current source**
+ * (`nx build cli`) and runs the local dist entry — so the suite always validates
+ * the code in this checkout, never a stale globally-linked `nest-cli`. Falls back
+ * to a globally-linked `nest-cli` only if the build can't be produced.
  * Sets the module-level `CLI`. Exits if it can't produce a runnable CLI.
+ *
+ * Set `E2E_USE_GLOBAL_CLI=1` to force the globally-linked `nest-cli` instead.
  */
 async function ensureCli(): Promise<void> {
-  if (hasBinary('nest-cli')) {
+  if (process.env.E2E_USE_GLOBAL_CLI === '1' && hasBinary('nest-cli')) {
     CLI = { cmd: 'nest-cli', prefix: [] };
-    info('Using globally-linked nest-cli (assuming it reflects your current source).');
+    warn('Using globally-linked nest-cli (E2E_USE_GLOBAL_CLI=1) — ensure it reflects your current source.');
     return;
   }
-  // Always (re)build the dist fallback so the test reflects current source —
-  // testing a stale dist would silently validate old code.
-  info('nest-cli not linked — building the CLI from current source (nx build cli)...');
+
+  // Build the CLI from current source so the test never validates stale code
+  // (a globally-linked nest-cli is frequently an older published/installed copy).
+  info('Building the CLI from current source (nx build cli)...');
+  let built = false;
   try {
     await run('npx', ['nx', 'build', 'cli'], { cwd: REPO_ROOT });
+    built = existsSync(DIST_CLI);
   } catch {
-    console.error(`${C.red}Failed to build the CLI. Run "yarn nx build cli" manually.${C.reset}`);
-    process.exit(2);
+    built = false;
   }
-  if (!existsSync(DIST_CLI)) {
-    console.error(`${C.red}Built CLI not found at ${DIST_CLI}.${C.reset}`);
-    process.exit(2);
+
+  if (built) {
+    CLI = { cmd: process.execPath, prefix: [DIST_CLI] };
+    info(`Using locally-built CLI: ${path.relative(REPO_ROOT, DIST_CLI)}`);
+    return;
   }
-  CLI = { cmd: process.execPath, prefix: [DIST_CLI] };
-  info(`Using locally-built CLI: ${path.relative(REPO_ROOT, DIST_CLI)}`);
+
+  // Fallback: a globally-linked nest-cli, if present.
+  if (hasBinary('nest-cli')) {
+    CLI = { cmd: 'nest-cli', prefix: [] };
+    warn('CLI build unavailable — falling back to globally-linked nest-cli (may be stale).');
+    return;
+  }
+
+  console.error(`${C.red}Failed to build the CLI. Run "yarn nx build cli" manually.${C.reset}`);
+  process.exit(2);
 }
 
 // ---------------------------------------------------------------------------
@@ -604,10 +667,18 @@ async function main(): Promise<void> {
 
   heading('NestExtended generated-app E2E test');
 
-  // Resolve the generator: linked `nest-cli`, else the locally-built dist (built on demand).
+  mkdirSync(APPS_DIR, { recursive: true });
+
+  // Resolve the generator (builds the CLI from current source by default).
   await ensureCli();
 
-  mkdirSync(APPS_DIR, { recursive: true });
+  // `--local`: install the workspace's @nest-extended/* packages from freshly
+  // packed tarballs instead of the registry. Required to e2e a runtime package
+  // that isn't published yet (e.g. a brand-new @nest-extended/typeorm).
+  if (args.includes('--local')) {
+    const localDir = await packLocalPackages();
+    process.env.NEST_EXTENDED_LOCAL_DIR = localDir;
+  }
 
   const summary: RunResult[] = [];
   let port = 3100;
