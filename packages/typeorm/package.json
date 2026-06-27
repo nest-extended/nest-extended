@@ -1,6 +1,7 @@
 {
   "name": "@nest-extended/typeorm",
   "version": "0.0.2-beta-18",
+  "license": "MIT",
   "private": false,
   "type": "commonjs",
   "contributors": [
