@@ -1,13 +1,13 @@
 ---
 name: nest-extended
-description: 'NestExtended skill for AI agents. USE WHEN: working in a NestJS app that uses @nest-extended/core, @nest-extended/mongoose, @nest-extended/prisma, @nest-extended/cli, or @nest-extended/decorators. Provides complete API reference for generic CRUD services, Mongoose/Prisma integrations, pagination, soft-delete, exception filters, decorators, and the nest-cli scaffolding tool.'
+description: 'NestExtended skill for AI agents. USE WHEN: working in a NestJS app that uses @nest-extended/core, @nest-extended/mongoose, @nest-extended/prisma, @nest-extended/typeorm, @nest-extended/cli, or @nest-extended/decorators. Provides complete API reference for generic CRUD services, Mongoose/Prisma/TypeORM integrations, pagination, soft-delete, exception filters, decorators, and the nest-cli scaffolding tool.'
 ---
 
 # NestExtended
 
-NestExtended supercharges NestJS development with generic CRUD services, controllers, Mongoose/Prisma integrations (pagination, soft-delete, query filtering), exception filters, decorators, and a scaffolding CLI.
+NestExtended supercharges NestJS development with generic CRUD services, controllers, Mongoose/Prisma/TypeORM integrations (pagination, soft-delete, query filtering), exception filters, decorators, and a scaffolding CLI.
 
-**NPM packages**: `@nest-extended/core` · `@nest-extended/mongoose` · `@nest-extended/prisma` · `@nest-extended/cli` · `@nest-extended/decorators`
+**NPM packages**: `@nest-extended/core` · `@nest-extended/mongoose` · `@nest-extended/prisma` · `@nest-extended/typeorm` · `@nest-extended/cli` · `@nest-extended/decorators`
 
 ---
 
@@ -182,6 +182,64 @@ providers: [{ provide: APP_FILTER, useClass: GlobalExceptionFilter }]
 
 ---
 
+## `@nest-extended/typeorm`
+
+Generic CRUD service for TypeORM supporting PostgreSQL, MySQL, and SQLite. Same API shape and FeathersJS-style query language as the Prisma/Mongoose adapters.
+
+### `NestService<T>` Methods
+
+Same surface as Prisma/Mongoose: `_find(query?, findOptions?)`, `_get(id, query?)`, `_create(data)`, `_patch(id, data, query?)`, `_remove(id, query?, user?)`, `getCount(filter)`.
+
+**Constructor**: `new NestService(repository, serviceOptions?, softDeleteConfig?)` — pass a TypeORM `Repository<T>` (via `@InjectRepository`).
+
+### Query Operators (FeathersJS-style → TypeORM)
+
+| Operator | TypeORM Translation |
+|---|---|
+| `$eq` | `Equal(value)` |
+| `$ne` | `Not(value)` |
+| `$gt/$gte/$lt/$lte` | `MoreThan/MoreThanOrEqual/LessThan/LessThanOrEqual(value)` |
+| `$in/$nin` | `In([values])` / `Not(In([values]))` |
+| `$like` | `Like('%value%')` |
+| `$iLike` | `ILike('%value%')` (PostgreSQL only) |
+| `$or/$and` | OR → array of `where` objects; AND → merged `where` object |
+
+Multiple operators on one field combine via `And(...)`.
+
+### Special Parameters
+
+| Param | Maps to |
+|---|---|
+| `$sort` | `order` (`1` = `ASC`, `-1` = `DESC`) |
+| `$limit` | `take` (default: 20) |
+| `$skip` | `skip` (default: 0) |
+| `$select` | `select: { field: true }` |
+| `$include` | `relations: { relation: true }` |
+
+### Exception Filter
+
+`GlobalExceptionFilter` — handles TypeORM `QueryFailedError` (driver codes for unique/foreign-key/not-null/etc. across PostgreSQL/MySQL/SQLite), `EntityNotFoundError`, `ZodError`, `HttpException`. `handleTypeOrmError` translates driver error codes to user-friendly messages.
+
+### Usage
+
+```typescript
+@Injectable()
+export class CatsService extends NestService<Cat> {
+  constructor(@InjectRepository(Cat) repo: Repository<Cat>) {
+    super(repo);
+  }
+}
+
+await this.catsService._find({ name: { $like: 'kitty' }, $sort: { createdAt: -1 } });
+await this.usersService._find({ $include: { posts: true } });
+
+providers: [{ provide: APP_FILTER, useClass: GlobalExceptionFilter }]
+```
+
+> Schema sync: generated TypeORM apps read `DB_SYNCHRONIZE` (default `false`). Run `npm run db:sync` to create tables manually, or set `DB_SYNCHRONIZE=true` to auto-sync on boot. Prefer real migrations (`migration:generate`/`migration:run`) for production.
+
+---
+
 ## `@nest-extended/decorators`
 
 Reusable param and method decorators.
@@ -249,7 +307,8 @@ All flags are optional — omit any flag to be prompted interactively for that o
 | Flag | Short | Values | Behavior when omitted |
 |---|---|---|---|
 | `--pkg-manager <pm>` | `-p`, `--pm` | `npm` \| `yarn` \| `pnpm` | Prompts interactively |
-| `--database <type>` | `-d`, `--db` | `Mongoose` \| `PostgreSQL` \| `MySQL` \| `SQLite` | Prompts interactively |
+| `--database <type>` | `-d`, `--db` | `PostgreSQL` \| `MySQL` \| `SQLite` \| `MongoDB` (legacy `Mongoose` accepted) | Prompts interactively |
+| `--orm <type>` | `-o` | `prisma` \| `typeorm` \| `mongoose` | SQL → prompts (default Prisma); MongoDB → `mongoose`. `--db <sql>` with no `--orm` defaults to Prisma. |
 | `--validator <type>` | `-v` | `zod` \| `class-validator` | Prompts interactively |
 | `--auth` | — | boolean flag | Prompts interactively |
 | `--skip-auth` | — | boolean flag | Prompts interactively |
@@ -258,20 +317,22 @@ All flags are optional — omit any flag to be prompted interactively for that o
 
 ```bash
 # Fully non-interactive
-nest-cli g app my-api --db Mongoose --validator zod --pm yarn --auth
+nest-cli g app my-api --db MongoDB --orm mongoose --validator zod --pm yarn --auth
+nest-cli g app my-api --db PostgreSQL --orm typeorm --validator zod --pm npm --auth
 
-# Mix of flags and prompts
+# Mix of flags and prompts (SQL with no --orm defaults to Prisma)
 nest-cli g app my-api --database PostgreSQL --skip-auth
 
-# Fully interactive (prompts for all options)
+# Fully interactive (prompts for database, then ORM, then the rest)
 nest-cli g app my-api
 ```
 
 **Generates:**
-- Database choice: **Mongoose**, **PostgreSQL**, **MySQL**, or **SQLite (Prisma)**
+- Database + ORM choice: **Mongoose** (MongoDB), **Prisma** (PostgreSQL/MySQL/SQLite), or **TypeORM** (PostgreSQL/MySQL/SQLite)
 - Validation library: `zod` or `class-validator`
 - `ConfigModule`, `ClsModule`, `NestExtendedModule`, `GlobalExceptionFilter`, `NullResponseInterceptor` pre-configured
-- `.env` with `MONGODB_URI` or `DATABASE_URL`
+- `.env` with `MONGODB_URI`, `DATABASE_URL`, or (TypeORM SQLite) `DATABASE_PATH` + `DB_SYNCHRONIZE`
+- TypeORM only: `src/database/data-source.ts` + `database.module.ts`, plus `db:sync`/`migration:*` scripts
 - Optionally: JWT Auth + Users modules
 
 ### `g service <name>` — Generates a resource bundle
@@ -282,37 +343,44 @@ All flags are optional — omit any flag to be prompted interactively for that o
 
 | Flag | Short | Values | Behavior when omitted |
 |---|---|---|---|
-| `--database <type>` | `-d`, `--db` | `Mongoose` \| `PostgreSQL` \| `MySQL` \| `SQLite` | Prompts interactively |
+| `--database <type>` | `-d`, `--db` | `PostgreSQL` \| `MySQL` \| `SQLite` \| `MongoDB` (legacy `Mongoose` accepted) | Prompts interactively |
+| `--orm <type>` | `-o` | `prisma` \| `typeorm` \| `mongoose` | SQL → prompts (default Prisma); MongoDB → `mongoose` |
 | `--validator <type>` | `-v` | `zod` \| `class-validator` | Prompts interactively |
+
+> Use the **same `--db`/`--orm`** as the app you're generating into.
 
 **Examples:**
 
 ```bash
 # Fully non-interactive
-nest-cli g service category --database Mongoose --validator zod
+nest-cli g service category --db MongoDB --orm mongoose --validator zod
+nest-cli g service order-item --db PostgreSQL --orm typeorm --validator zod
 
 # Short flags
-nest-cli g service user-profile -d Mongoose -v class-validator
+nest-cli g service user-profile -d PostgreSQL -o typeorm -v class-validator
 
-# Mix — prompts only for what's missing
+# Mix — prompts only for what's missing (SQL with no --orm defaults to Prisma)
 nest-cli g service category --db PostgreSQL
 
-# Fully interactive (prompts for all options)
+# Fully interactive
 nest-cli g service user-profile
 ```
 
 For `nest-cli g service user-profile` → `UserProfile` / `userProfile`:
 
-- `src/schemas/userProfile.schema.ts` — Mongoose schema with soft-delete fields (`select: false`)
+- The storage definition for the chosen ORM:
+  - **Mongoose**: `src/schemas/userProfile.schema.ts` (soft-delete fields use `select: false`)
+  - **Prisma**: a `model UserProfile { ... }` block appended to `prisma/schema.prisma`
+  - **TypeORM**: `src/services/userProfile/entities/userProfile.entity.ts`
 - `src/services/userProfile/userProfile.module.ts`
 - `src/services/userProfile/userProfile.service.ts` — extends `NestService`
 - `src/services/userProfile/userProfile.controller.ts` — full CRUD
 - `src/services/userProfile/dto/userProfile.dto.ts` — Zod or class-validator
 - `src/services/userProfile/userProfile.*.spec.ts` — unit tests
 
-**Supports nested paths**: `nest-cli g service qna/category --db Mongoose -v zod` → `src/services/qna/category/`
+**Supports nested paths**: `nest-cli g service qna/category --db MongoDB --orm mongoose -v zod` → `src/services/qna/category/`
 
-**Auth-aware**: if `src/services/auth/` exists, schemas automatically include `createdBy`, `updatedBy`, `deletedBy` fields.
+**Auth-aware**: if `src/services/auth/` exists, schemas/models/entities automatically include `createdBy`, `updatedBy`, `deletedBy` fields.
 
 ---
 
@@ -324,6 +392,8 @@ For `nest-cli g service user-profile` → `UserProfile` / `userProfile`:
 4. **Schema `select: false`** — `deleted`, `deletedAt`, `deletedBy`, `updatedBy` are hidden from queries by default.
 5. **Validator selection** — `g service` and `g app` prompt for `zod` or `class-validator`; missing packages are auto-installed.
 6. **Naming conventions** — kebab-case CLI input → PascalCase classes → camelCase file names.
-7. **Import via package names** — always use `@nest-extended/core`, `@nest-extended/mongoose`, etc.
+7. **Import via package names** — always use `@nest-extended/core`, `@nest-extended/mongoose`, `@nest-extended/typeorm`, etc.
 8. **Bulk operations** — pass `multi: true` to the NestService constructor to enable array creates and bulk updates.
-9. **Prisma vs Mongoose** — use `$include` (Prisma) instead of `$populate` (Mongoose) for eager-loading relations.
+9. **Relations** — use `$include` (Prisma & TypeORM) instead of `$populate` (Mongoose) for eager-loading relations.
+10. **Database + ORM selection** — pick a database first, then an ORM: SQL databases (PostgreSQL/MySQL/SQLite) support **Prisma or TypeORM**; MongoDB uses **Mongoose**. SQL + no `--orm` defaults to Prisma.
+11. **TypeORM schema sync** — generated TypeORM apps default to `DB_SYNCHRONIZE=false`; run `npm run db:sync` (or set it `true`) to create tables. The service injects a TypeORM `Repository` via `@InjectRepository`.

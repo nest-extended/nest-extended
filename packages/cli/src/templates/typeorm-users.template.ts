@@ -1,34 +1,71 @@
 
 /**
- * Prisma-compatible Users templates.
- * Same functionality as the Mongoose users templates but using Prisma.
+ * TypeORM-compatible Users templates.
+ * Same functionality as the Prisma/Mongoose users templates but using a TypeORM
+ * entity + repository.
  */
 
-export const getPrismaUsersModel = (): string => `
-model Users {
-  id        String    @id @default(cuid())
-  firstName String
-  lastName  String
-  email     String    @unique
-  password  String
-  phone     String?
-  role      Int       @default(1)
-  deleted   Boolean?  @default(false)
-  deletedAt DateTime?
-  deletedBy String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+export const getTypeOrmUsersEntity = (): string => `import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+
+@Entity('users')
+export class Users {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column()
+  firstName: string;
+
+  @Column()
+  lastName: string;
+
+  @Column({ unique: true })
+  email: string;
+
+  @Column()
+  password: string;
+
+  @Column({ nullable: true })
+  phone?: string;
+
+  @Column({ type: 'int', default: 1 })
+  role: number;
+
+  @Column({ default: false, nullable: true })
+  deleted?: boolean;
+
+  @Column({ nullable: true })
+  deletedAt?: Date;
+
+  @Column({ nullable: true })
+  deletedBy?: string;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }
 `;
 
-export const getPrismaUsersService = (): string => `import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { NestService } from '@nest-extended/prisma';
+export const getTypeOrmUsersService = (): string => `import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { NestService } from '@nest-extended/typeorm';
+import { Users } from './entities/users.entity';
 
 @Injectable()
-export class UsersService extends NestService<any> {
-  constructor(private readonly prisma: PrismaService) {
-    super(prisma.users);
+export class UsersService extends NestService<Users> {
+  constructor(
+    @InjectRepository(Users)
+    private readonly usersRepository: Repository<Users>,
+  ) {
+    super(usersRepository);
   }
 
   sanitizeUser(user: Record<string, any>) {
@@ -39,7 +76,7 @@ export class UsersService extends NestService<any> {
 }
 `;
 
-export const getPrismaUsersController = (): string => `import {
+export const getTypeOrmUsersController = (): string => `import {
   BadRequestException,
   Body,
   Controller,
@@ -113,26 +150,17 @@ export class UsersController {
 
     return await this.usersService._patch(id, patchUsersDto, query);
   }
-
-  @Patch('/:id/block')
-  async block(
-    @Body() patchUsersDto: { blocked: boolean },
-    @Param('id') id: string,
-  ) {
-    return await this.usersService._patch(
-      id,
-      { blocked: patchUsersDto?.blocked ?? true },
-      {},
-    );
-  }
 }
 `;
 
-export const getPrismaUsersModule = (): string => `import { Module } from '@nestjs/common';
+export const getTypeOrmUsersModule = (): string => `import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Users } from './entities/users.entity';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 
 @Module({
+  imports: [TypeOrmModule.forFeature([Users])],
   controllers: [UsersController],
   providers: [UsersService],
   exports: [UsersService],

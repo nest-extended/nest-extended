@@ -3,21 +3,22 @@ import * as chalk from 'chalk';
 import * as path from 'path';
 import * as fs from 'fs-extra';
 import { spawn } from 'child_process';
-import { getModule } from '../templates/module.template';
-import { getController } from '../templates/controller.template';
-import { getDto } from '../templates/dto.template';
 import { generateAuthServices } from '../lib/generate-auth-services';
 import { generatePrismaAuthServices } from '../lib/generate-prisma-auth-services';
+import { generateTypeOrmAuthServices } from '../lib/generate-typeorm-auth-services';
 import { getPrismaServiceFile, getPrismaModuleFile, getPrismaAdapterPackage } from '../templates/prisma-setup.template';
+import { getDataSourceFile, getDatabaseModuleFile, getTypeOrmDriverPackage } from '../templates/typeorm-setup.template';
 import { configurePrismaGenerator, ignoreGeneratedPrismaClient } from '../lib/configure-prisma-generator';
+import { resolveDatabaseAndOrm } from '../lib/resolve-orm';
+import { nestExtendedDep } from '../lib/local-packages';
 
 const PM_CHOICES = ['npm', 'yarn', 'pnpm'];
-const DB_CHOICES = ['Mongoose', 'PostgreSQL', 'MySQL', 'SQLite'];
 const VALIDATOR_CHOICES = ['zod', 'class-validator'];
 
 interface AppOptions {
     pkgManager?: string; pm?: string;
     database?: string; db?: string;
+    orm?: string;
     validator?: string;
     auth?: boolean; skipAuth?: boolean;
 }
@@ -42,24 +43,8 @@ export const generateAppAction = async (appName: string, options: AppOptions = {
         pkgManager = answer.pkgManager;
     }
 
-    // Resolve --database / --db / -d
-    let database: string = options.database || options.db || '';
-    if (database && !DB_CHOICES.includes(database)) {
-        console.error(chalk.red(`Invalid --database "${database}". Valid options: ${DB_CHOICES.join(', ')}`));
-        process.exit(1);
-    }
-    if (!database) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
-        const answer = await inquirer.prompt([{
-            type: 'list',
-            name: 'database',
-            message: 'Which database would you like to use?',
-            choices: DB_CHOICES,
-            default: 'Mongoose',
-        }]);
-        database = answer.database;
-    }
+    // Resolve --database / --db and --orm (two-step prompt when not supplied).
+    const { database, orm, sqlProvider } = await resolveDatabaseAndOrm(options);
 
     // Resolve --validator / -v
     let validatorType: string = options.validator || '';
@@ -98,9 +83,7 @@ export const generateAppAction = async (appName: string, options: AppOptions = {
         generateAuth = answer.generateAuth;
     }
 
-    const isPrisma = database !== 'Mongoose';
-
-    console.log(chalk.blue(`Generating NestJS app: ${appName} with ${database}`));
+    console.log(chalk.blue(`Generating NestJS app: ${appName} with ${database} (${orm})`));
 
     const appDir = path.join(process.cwd(), appName);
 
@@ -128,21 +111,29 @@ export const generateAppAction = async (appName: string, options: AppOptions = {
             '@nestjs/config',
             'nestjs-cls',
             'qs',
-            `@nest-extended/core@${nestExtendedVersion}`,
-            `@nest-extended/decorators@${nestExtendedVersion}`,
+            nestExtendedDep('core', nestExtendedVersion),
+            nestExtendedDep('decorators', nestExtendedVersion),
         ];
 
-        if (isPrisma) {
+        if (orm === 'prisma') {
             baseDeps.push(
                 '@prisma/client',
                 getPrismaAdapterPackage(database),
-                `@nest-extended/prisma@${nestExtendedVersion}`,
+                nestExtendedDep('prisma', nestExtendedVersion),
+            );
+        } else if (orm === 'typeorm') {
+            baseDeps.push(
+                '@nestjs/typeorm',
+                'typeorm',
+                'dotenv',
+                getTypeOrmDriverPackage(sqlProvider as string),
+                nestExtendedDep('typeorm', nestExtendedVersion),
             );
         } else {
             baseDeps.push(
                 '@nestjs/mongoose',
                 'mongoose',
-                `@nest-extended/mongoose@${nestExtendedVersion}`,
+                nestExtendedDep('mongoose', nestExtendedVersion),
             );
         }
 
@@ -176,7 +167,8 @@ export const generateAppAction = async (appName: string, options: AppOptions = {
     // 3. Install Dev dependencies
     const devDeps: string[] = ['@types/qs'];
     if (generateAuth) devDeps.push('@types/bcrypt');
-    if (isPrisma) devDeps.push('prisma');
+    if (orm === 'prisma') devDeps.push('prisma');
+    if (orm === 'typeorm') devDeps.push('ts-node');
 
     if (devDeps.length > 0) {
         await new Promise<void>((resolve, reject) => {
@@ -195,7 +187,7 @@ export const generateAppAction = async (appName: string, options: AppOptions = {
 
     console.log(chalk.blue('Configuring project...'));
 
-    if (isPrisma) {
+    if (orm === 'prisma') {
         // --- Prisma-based app setup ---
 
         // Initialize Prisma
@@ -298,6 +290,120 @@ JWT_SECRET=super-secret-jwt-key
 
         if (generateAuth) {
             generatePrismaAuthServices(appDir);
+        }
+
+    } else if (orm === 'typeorm') {
+        // --- TypeORM-based app setup ---
+
+        const provider = sqlProvider as string;
+
+        // Create the shared DataSource + DatabaseModule.
+        const dbDir = path.join(appDir, 'src/database');
+        fs.ensureDirSync(dbDir);
+        fs.writeFileSync(path.join(dbDir, 'data-source.ts'), getDataSourceFile(provider as 'postgresql' | 'mysql' | 'sqlite'));
+        fs.writeFileSync(path.join(dbDir, 'database.module.ts'), getDatabaseModuleFile());
+
+        // Update app.module.ts for TypeORM
+        const appModulePath = path.join(appDir, 'src/app.module.ts');
+        let appModuleContent = fs.readFileSync(appModulePath, 'utf8');
+
+        const authImports = generateAuth ? `
+import { AuthModule } from './services/auth/auth.module';
+import { UsersModule } from './services/users/users.module';` : '';
+        const importsToAdd = `
+import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { GlobalExceptionFilter } from '@nest-extended/typeorm';
+import { ConfigModule } from '@nestjs/config';
+import { ClsModule } from 'nestjs-cls';
+import { NestExtendedModule, NullResponseInterceptor } from '@nest-extended/core';
+import { DatabaseModule } from './database/database.module';${authImports}
+`;
+        appModuleContent = importsToAdd + appModuleContent;
+
+        const deletedByProp = generateAuth ? `
+          deletedBy: user?.id,` : '';
+        const authModuleImports = generateAuth ? `
+    AuthModule,
+    UsersModule,` : '';
+
+        const nestImports = `
+    ConfigModule.forRoot({
+      envFilePath: ['.env'],
+      isGlobal: true,
+    }),
+    ClsModule.forRoot({
+      global: true,
+      middleware: { mount: true },
+    }),
+    NestExtendedModule.forRoot({
+      softDelete: {
+        getQuery: () => ({ deleted: { $ne: true } }),
+        getData: (user: { id?: string } | null) => ({
+          deleted: true,${deletedByProp}
+          deletedAt: new Date(),
+        }),
+      },
+      filters: [],
+    }),
+    DatabaseModule,${authModuleImports}`;
+
+        appModuleContent = appModuleContent.replace(/imports:\s*\[/, `imports: [\n${nestImports}`);
+
+        const appProviders = `providers: [
+    AppService,
+    {
+      provide: APP_FILTER,
+      useClass: GlobalExceptionFilter,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: NullResponseInterceptor,
+    },
+  ],`;
+        appModuleContent = appModuleContent.replace(/providers:\s*\[AppService\],?/, appProviders);
+
+        fs.writeFileSync(appModulePath, appModuleContent);
+
+        // Write .env file
+        let envContent: string;
+        if (provider === 'sqlite') {
+            envContent = `DATABASE_PATH=dev.db
+DB_SYNCHRONIZE=false
+JWT_SECRET=super-secret-jwt-key
+`;
+        } else {
+            const databaseUrl = provider === 'mysql'
+                ? 'mysql://user:password@localhost:3306/mydb'
+                : 'postgresql://user:password@localhost:5432/mydb';
+            envContent = `DATABASE_URL="${databaseUrl}"
+DB_SYNCHRONIZE=false
+JWT_SECRET=super-secret-jwt-key
+`;
+        }
+        fs.writeFileSync(path.join(appDir, '.env'), envContent);
+
+        // Keep the SQLite database file out of version control.
+        if (provider === 'sqlite') {
+            const gitignorePath = path.join(appDir, '.gitignore');
+            let gi = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : '';
+            if (!gi.split('\n').map((l) => l.trim()).includes('dev.db')) {
+                const prefix = gi.length > 0 && !gi.endsWith('\n') ? '\n' : '';
+                fs.appendFileSync(gitignorePath, `${prefix}\n# SQLite database\ndev.db\n`);
+            }
+        }
+
+        // Add TypeORM CLI scripts (manual schema sync / migrations).
+        const pkgJsonPath = path.join(appDir, 'package.json');
+        const appPkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
+        appPkg.scripts = appPkg.scripts || {};
+        appPkg.scripts['db:sync'] = 'typeorm-ts-node-commonjs schema:sync -d src/database/data-source.ts';
+        appPkg.scripts['migration:generate'] = 'typeorm-ts-node-commonjs migration:generate -d src/database/data-source.ts';
+        appPkg.scripts['migration:run'] = 'typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts';
+        appPkg.scripts['migration:revert'] = 'typeorm-ts-node-commonjs migration:revert -d src/database/data-source.ts';
+        fs.writeFileSync(pkgJsonPath, JSON.stringify(appPkg, null, 2) + '\n');
+
+        if (generateAuth) {
+            generateTypeOrmAuthServices(appDir);
         }
 
     } else {

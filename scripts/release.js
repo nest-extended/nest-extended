@@ -14,6 +14,7 @@ const packages = [
     'packages/core/package.json',
     'packages/mongoose/package.json',
     'packages/prisma/package.json',
+    'packages/typeorm/package.json',
     'packages/cli/package.json',
     'packages/decorators/package.json',
 ];

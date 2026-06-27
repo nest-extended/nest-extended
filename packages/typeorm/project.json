@@ -1,0 +1,19 @@
+{
+  "name": "typeorm",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/typeorm/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/packages/typeorm",
+        "main": "packages/typeorm/src/index.ts",
+        "tsConfig": "packages/typeorm/tsconfig.lib.json",
+        "assets": ["packages/typeorm/*.md"]
+      }
+    }
+  }
+}
