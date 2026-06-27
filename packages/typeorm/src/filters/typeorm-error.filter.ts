@@ -7,7 +7,6 @@ export function handleTypeOrmError(exception: any): {
     message: string;
     details?: string;
 } {
-    let message = 'A database error occurred.';
     const details = exception?.message;
 
     const driverError = exception?.driverError ?? exception;
@@ -22,9 +21,10 @@ export function handleTypeOrmError(exception: any): {
         code === 'SQLITE_CONSTRAINT_UNIQUE' ||
         code === 'SQLITE_CONSTRAINT' // SQLite (generic constraint; usually unique)
     ) {
-        message =
-            'A record with this value already exists. The value must be unique.';
-        return wrap(message, details);
+        return wrap(
+            'A record with this value already exists. The value must be unique.',
+            details,
+        );
     }
 
     // --- Foreign key violations ---
@@ -35,8 +35,10 @@ export function handleTypeOrmError(exception: any): {
         errno === 1452 ||
         code === 'SQLITE_CONSTRAINT_FOREIGNKEY'
     ) {
-        message = 'Foreign key constraint failed. A related record is missing.';
-        return wrap(message, details);
+        return wrap(
+            'Foreign key constraint failed. A related record is missing.',
+            details,
+        );
     }
 
     // --- Not-null violations ---
@@ -46,35 +48,46 @@ export function handleTypeOrmError(exception: any): {
         errno === 1048 ||
         code === 'SQLITE_CONSTRAINT_NOTNULL'
     ) {
-        message = 'A required field is missing. This field cannot be null.';
-        return wrap(message, details);
+        return wrap(
+            'A required field is missing. This field cannot be null.',
+            details,
+        );
     }
 
     // --- Check constraint violations ---
     if (code === '23514' || code === 'SQLITE_CONSTRAINT_CHECK') {
-        message = 'A check constraint failed for the provided value.';
-        return wrap(message, details);
+        return wrap(
+            'A check constraint failed for the provided value.',
+            details,
+        );
     }
 
     // --- Value too long ---
     if (code === '22001' || code === 'ER_DATA_TOO_LONG' || errno === 1406) {
-        message = 'The provided value is too long for one of the columns.';
-        return wrap(message, details);
+        return wrap(
+            'The provided value is too long for one of the columns.',
+            details,
+        );
     }
 
     // --- Undefined table / column ---
     if (code === '42P01' || code === 'ER_NO_SUCH_TABLE' || errno === 1146) {
-        message = 'The requested table does not exist in the current database.';
-        return wrap(message, details);
+        return wrap(
+            'The requested table does not exist in the current database.',
+            details,
+        );
     }
     if (code === '42703' || code === 'ER_BAD_FIELD_ERROR' || errno === 1054) {
-        message = 'The requested column does not exist in the current database.';
-        return wrap(message, details);
+        return wrap(
+            'The requested column does not exist in the current database.',
+            details,
+        );
     }
 
-    message =
-        'An unknown database error occurred. Please contact support if the issue persists.';
-    return wrap(message, details);
+    return wrap(
+        'An unknown database error occurred. Please contact support if the issue persists.',
+        details,
+    );
 }
 
 function wrap(
