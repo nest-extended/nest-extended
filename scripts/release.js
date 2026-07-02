@@ -19,6 +19,24 @@ const packages = [
     'packages/decorators/package.json',
 ];
 
+const subPackageDirs = [
+    'packages/core',
+    'packages/mongoose',
+    'packages/prisma',
+    'packages/typeorm',
+    'packages/cli',
+    'packages/decorators',
+];
+
+const licenceSrc = path.resolve(__dirname, '..', 'LICENSE');
+
+console.log('Copying LICENSE to all packages...');
+subPackageDirs.forEach((dir) => {
+    const dest = path.resolve(__dirname, '..', dir, 'LICENSE');
+    fs.copyFileSync(licenceSrc, dest);
+    console.log(`  → ${dir}/LICENSE`);
+});
+
 console.log(`Updating versions to ${version}...`);
 
 packages.forEach((pkgPath) => {

@@ -49,3 +49,4 @@ Thumbs.db
 
 # E2E generated test apps (scripts/e2e)
 /.e2e-apps
+packages/*/LICENSE
