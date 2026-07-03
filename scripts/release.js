@@ -2,7 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-const version = process.argv[2];
+const args = process.argv.slice(2);
+const isProd = args.includes('--prod') || args.includes('--production') || args.includes('-p');
+const version = args.find((arg) => !arg.startsWith('--'));
 
 if (!version) {
     console.error('Please provide a version number.');
@@ -63,16 +65,20 @@ packages.forEach((pkgPath) => {
     console.log(`Updated ${pkgPath}`);
 });
 
-try {
-    console.log('Committing changes...');
-    execSync('git add .');
-    execSync(`git commit -m "chore: release v${version}"`);
+if (isProd) {
+    console.log(`Done! Version bumped to ${version}. Review the changes, then commit and tag manually.`);
+} else {
+    try {
+        console.log('Committing changes...');
+        execSync('git add .');
+        execSync(`git commit -m "chore: release v${version}"`);
 
-    console.log(`Creating tag v${version}...`);
-    execSync(`git tag v${version}`);
+        console.log(`Creating tag v${version}...`);
+        execSync(`git tag v${version}`);
 
-    console.log('Done! Run "git push && git push --tags" to publish.');
-} catch (e) {
-    console.error('Failed to commit or tag:', e.message);
-    process.exit(1);
+        console.log('Done! Run "git push && git push --tags" to publish.');
+    } catch (e) {
+        console.error('Failed to commit or tag:', e.message);
+        process.exit(1);
+    }
 }

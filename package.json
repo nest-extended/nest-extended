@@ -2,6 +2,14 @@
   "name": "@nest-extended/source",
   "version": "0.0.2-beta-18",
   "license": "MIT",
+  "homepage": "https://www.nest-extended.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nest-extended/nest-extended.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nest-extended/nest-extended/issues"
+  },
   "private": true,
   "contributors": [
     {
@@ -38,7 +46,8 @@
   "scripts": {
     "test": "nx test",
     "test:e2e:generated": "node --import @swc-node/register/esm-register scripts/e2e/test-generated-app.ts",
-    "release": "node scripts/release.js"
+    "release": "node scripts/release.js",
+    "release:prod": "node scripts/release.js --prod"
   },
   "devDependencies": {
     "@eslint/js": "^9.8.0",
