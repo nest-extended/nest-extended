@@ -6866,10 +6866,10 @@ neo-async@^2.6.2:
   resolved "https://registry.yarnpkg.com/neo-async/-/neo-async-2.6.2.tgz#b4aafb93e3aeb2d8174ca53cf163ab7d7308305f"
   integrity sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==
 
-nestjs-cls@^6.2.0:
-  version "6.2.0"
-  resolved "https://registry.yarnpkg.com/nestjs-cls/-/nestjs-cls-6.2.0.tgz#ed7c24607fe445624fd6f8301c236e0c6a0812f3"
-  integrity sha512-b2Remha7gV5gId3ezjr2tupjqqgYK7/JqjqX6oZ0ZIDFATUggKH1/32+ul2lOe7FepnHasDONDoePuWEE64cug==
+nestjs-cls@^6.2.1:
+  version "6.2.1"
+  resolved "https://registry.yarnpkg.com/nestjs-cls/-/nestjs-cls-6.2.1.tgz#8d2d5c20d61144868c6a6be2a761243aac3b3f25"
+  integrity sha512-LTVvreuhH132+rjP4MwnykUS3byBAuN6WQzh2QA3YSYCjy9GfgRyoiSKE5qrzQe+uCB1/TUNHPCxEMYgR3tRlg==
 
 node-abort-controller@^3.0.1:
   version "3.1.1"
