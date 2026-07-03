@@ -63,7 +63,7 @@
     "@nx/workspace": "22.7.5",
     "@swc-node/register": "^1.11.1",
     "@swc/core": "^1.15.18",
-    "@swc/helpers": "^0.5.19",
+    "@swc/helpers": "^0.5.23",
     "@types/fs-extra": "^11.0.4",
     "@types/glob": "^9.0.0",
     "@types/inquirer": "^9.0.9",
