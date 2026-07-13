@@ -15,6 +15,7 @@ generateCommand
     .option('--db <type>', 'Alias for --database')
     .option('-o, --orm <type>', 'ORM/ODM: prisma | typeorm | mongoose')
     .option('-v, --validator <type>', 'Validation library: zod | class-validator')
+    .option('-r, --remove', 'Remove the generated service')
     .action((name, options) => generateServiceAction(name, options));
 
 generateCommand

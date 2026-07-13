@@ -477,6 +477,17 @@ async function runForCase(c: RunCase, port: number): Promise<RunResult> {
   info(`Generating CRUD resource "${RESOURCE}"...`);
   await nestCli(['g', 'service', RESOURCE, '--db', c.db, '--orm', c.orm, '--validator', 'zod'], { cwd: appDir });
 
+  // 2.5 Test the --remove flag
+  info(`Testing --remove flag on a dummy service...`);
+  await nestCli(['g', 'service', 'dummy', '--db', c.db, '--orm', c.orm, '--validator', 'zod'], { cwd: appDir });
+  if (!existsSync(path.join(appDir, 'src/services/dummy'))) {
+    throw new Error('Dummy service was not created');
+  }
+  await nestCli(['g', 'service', 'dummy', '--remove'], { cwd: appDir });
+  if (existsSync(path.join(appDir, 'src/services/dummy'))) {
+    throw new Error('Dummy service was not removed by --remove flag');
+  }
+
   // 3. DB prep
   if (c.orm === 'prisma') {
     info(`Generating Prisma client and pushing schema (${label})...`);

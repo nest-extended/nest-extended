@@ -5,6 +5,7 @@ import * as inquirer from 'inquirer';
 import { spawn } from 'child_process';
 import { createFileWithContent } from '../lib/create-file';
 import { updateAppModule } from '../lib/update-app-module';
+import { undoAppModule } from '../lib/undo-app-module';
 import { getModule } from '../templates/module.template';
 import { getService } from '../templates/service.template';
 import { getController } from '../templates/controller.template';
@@ -192,9 +193,21 @@ const appendPrismaModel = (projectDir: string, Name: string, isAuthGenerated: bo
     console.log(chalk.green(`Added model ${Name} to prisma/schema.prisma`));
 };
 
+const removePrismaModel = (projectDir: string, Name: string): void => {
+    const prismaSchemaPath = path.join(projectDir, 'prisma/schema.prisma');
+    if (!fs.existsSync(prismaSchemaPath)) return;
+    let content = fs.readFileSync(prismaSchemaPath, 'utf8');
+    const modelRegex = new RegExp(`model\\s+${Name}\\s+\\{[^}]*\\}`, 'g');
+    if (modelRegex.test(content)) {
+        content = content.replace(modelRegex, '');
+        fs.writeFileSync(prismaSchemaPath, content);
+        console.log(chalk.green(`Removed model ${Name} from prisma/schema.prisma`));
+    }
+};
+
 const VALIDATOR_CHOICES = ['zod', 'class-validator'];
 
-interface ServiceOptions { database?: string; db?: string; orm?: string; validator?: string; }
+interface ServiceOptions { database?: string; db?: string; orm?: string; validator?: string; remove?: boolean; }
 
 export const generateServiceAction = async (rawName: string, options: ServiceOptions = {}) => {
     const parts = rawName.split('/');
@@ -211,6 +224,30 @@ export const generateServiceAction = async (rawName: string, options: ServiceOpt
 
     const fullPath = dirPath ? `${dirPath}/${name}` : name;
     const targetDir = `src/services/${fullPath}`;
+    const projectDir = process.cwd();
+
+    if (options.remove) {
+        console.log(chalk.red(`Removing service: ${Name} (${fullPath})`));
+        if (fs.existsSync(targetDir)) {
+            fs.removeSync(targetDir);
+            console.log(chalk.green(`Removed directory ${targetDir}`));
+        }
+        
+        // Remove mongoose schema if exists
+        const schemaPath = `src/schemas/${fullPath}.schema.ts`;
+        if (fs.existsSync(schemaPath)) {
+            fs.removeSync(schemaPath);
+            console.log(chalk.green(`Removed schema file ${schemaPath}`));
+        }
+
+        // Remove from Prisma schema
+        removePrismaModel(projectDir, Name);
+
+        await undoAppModule(Name, name);
+
+        console.log(chalk.green('Service removed successfully!'));
+        return;
+    }
 
     // Resolve --database / --db and --orm (two-step prompt when not supplied).
     const { database, orm, sqlProvider } = await resolveDatabaseAndOrm(options);
@@ -234,7 +271,6 @@ export const generateServiceAction = async (rawName: string, options: ServiceOpt
         validatorType = answer.validatorType;
     }
 
-    const projectDir = process.cwd();
 
     // Ensure required validator packages are installed
     if (validatorType === 'zod') {
