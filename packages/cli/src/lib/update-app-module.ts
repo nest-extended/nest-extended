@@ -109,7 +109,7 @@ export async function updateAppModule(Name: string, name: string, fullPath: stri
 
         await fs.writeFile(appModulePath, content, 'utf-8');
         console.log(chalk.green(`Successfully added ${Name}Module to app.module.ts`));
-    } catch (err: any) {
-        console.error(chalk.red('Error updating app.module.ts:'), err.message);
+    } catch (err) {
+        console.error(chalk.red('Error updating app.module.ts:'), err instanceof Error ? err.message : String(err));
     }
 }
