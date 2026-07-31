@@ -21,6 +21,7 @@ import { getPrismaDto } from '../templates/prisma-dto.template';
 import { getPrismaDtoClassValidator } from '../templates/prisma-dto-class-validator.template';
 import { getPrismaServiceFile, getPrismaModuleFile, getPrismaAdapterPackage } from '../templates/prisma-setup.template';
 import { configurePrismaGenerator, ignoreGeneratedPrismaClient } from '../lib/configure-prisma-generator';
+import { injectPrismaScripts } from '../lib/inject-prisma-scripts';
 import { getTypeOrmEntity } from '../templates/typeorm-entity.template';
 import { getTypeOrmService } from '../templates/typeorm-service.template';
 import { getTypeOrmModule } from '../templates/typeorm-module.template';
@@ -130,6 +131,10 @@ const ensurePrismaSetup = async (projectDir: string, dbType: string): Promise<vo
         // generated client out of version control.
         configurePrismaGenerator(projectDir);
         ignoreGeneratedPrismaClient(projectDir);
+
+        // Inject `prisma:migrate` / `prisma:push` / etc. scripts that chain
+        // `prisma generate` so the client is never stale after a migration.
+        injectPrismaScripts(projectDir);
     }
 
     // Create PrismaService and PrismaModule if they don't exist
