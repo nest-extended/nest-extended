@@ -24,11 +24,11 @@
     }
   ],
   "dependencies": {
-    "@nestjs/common": "^11.1.19",
-    "@nestjs/core": "^11.1.19",
-    "@nestjs/mongoose": "^11.0.4",
-    "@nestjs/platform-express": "^11.1.19",
-    "@nestjs/typeorm": "^11.0.0",
+    "@nestjs/common": "^12.0.1",
+    "@nestjs/core": "^12.0.1",
+    "@nestjs/mongoose": "^12.0.0",
+    "@nestjs/platform-express": "^12.0.1",
+    "@nestjs/typeorm": "^12.0.1",
     "axios": "^1.13.6",
     "chalk": "^4.1.2",
     "commander": "^14.0.3",
@@ -51,8 +51,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.8.0",
-    "@nestjs/schematics": "^11.0.10",
-    "@nestjs/testing": "^11.1.19",
+    "@nestjs/schematics": "^12.0.0",
+    "@nestjs/testing": "^12.0.1",
     "@nx/eslint": "22.7.5",
     "@nx/eslint-plugin": "22.7.5",
     "@nx/js": "22.7.5",
