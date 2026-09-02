@@ -29,6 +29,11 @@ Each case is identified by a `DB+orm` label (e.g. `SQLite+typeorm`).
    *Service events* below)
 3. **DB prep:**
    - Prisma: `npx prisma generate` + `npx prisma db push`
+     > **Running the suite through an AI agent?** Prisma 7.10+ refuses `db push` when it
+     > detects an agent invoked it, and asks for explicit human consent. Export
+     > `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION="<your consent message>"` before the run,
+     > or run the Prisma cases yourself. The target is always the throwaway database in
+     > `.e2e-apps/<db>-<orm>-app/`, recreated on every run.
    - TypeORM: `npm run db:sync` (the generated manual schema-sync script; `DB_SYNCHRONIZE` defaults to `false`)
    - Mongoose: none
    For server-backed DBs (PostgreSQL/MySQL/MongoDB) it ensures the server is reachable (see below).

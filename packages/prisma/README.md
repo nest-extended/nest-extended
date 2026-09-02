@@ -2,6 +2,11 @@
 
 This package provides powerful Prisma integrations for the **NestExtended** ecosystem, offering a robust service layer with built-in pagination, filtering, soft delete capabilities, exception filters, and query utilities. Supports **PostgreSQL**, **MySQL**, and **SQLite**.
 
+> **Requires Prisma 7** (`prisma@^7`, `@prisma/client@^7`, and a `^7` driver adapter). Prisma 8
+> ("Prisma Next") is a different product with a different CLI and client layout, and the
+> `prisma` package currently publishes an 8.0.0 release candidate on the `latest` npm tag —
+> so pin your Prisma dependencies to `^7`. `nest-cli g app` / `g service` do this for you.
+
 ## Key Features
 
 ### NestService

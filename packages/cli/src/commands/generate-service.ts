@@ -29,6 +29,7 @@ import { getTypeOrmDto } from '../templates/typeorm-dto.template';
 import { getTypeOrmDtoClassValidator } from '../templates/typeorm-dto-class-validator.template';
 import { getDataSourceFile, getDatabaseModuleFile, getTypeOrmDriverPackage } from '../templates/typeorm-setup.template';
 import { resolveDatabaseAndOrm, SqlProvider } from '../lib/resolve-orm';
+import { PackageSpec, prismaPackage, specName, specValue } from '../lib/prisma-packages';
 import { getEvents } from '../templates/events.template';
 
 /**
@@ -50,8 +51,13 @@ const isPackageInstalled = (projectDir: string, packageName: string): boolean =>
 /**
  * Install packages if they are not already installed.
  */
-const ensurePackagesInstalled = async (projectDir: string, packages: string[]): Promise<void> => {
-    const missing = packages.filter(pkg => !isPackageInstalled(projectDir, pkg));
+const ensurePackagesInstalled = async (
+    projectDir: string,
+    packages: (string | PackageSpec)[],
+): Promise<void> => {
+    const missing = packages
+        .filter(pkg => !isPackageInstalled(projectDir, specName(pkg)))
+        .map(specValue);
     if (missing.length === 0) return;
 
     const pkgManager = detectPackageManager(projectDir);
@@ -77,8 +83,13 @@ const ensurePackagesInstalled = async (projectDir: string, packages: string[]): 
 /**
  * Install dev dependencies if not already installed.
  */
-const ensureDevPackagesInstalled = async (projectDir: string, packages: string[]): Promise<void> => {
-    const missing = packages.filter(pkg => !isPackageInstalled(projectDir, pkg));
+const ensureDevPackagesInstalled = async (
+    projectDir: string,
+    packages: (string | PackageSpec)[],
+): Promise<void> => {
+    const missing = packages
+        .filter(pkg => !isPackageInstalled(projectDir, specName(pkg)))
+        .map(specValue);
     if (missing.length === 0) return;
 
     const pkgManager = detectPackageManager(projectDir);
@@ -316,8 +327,12 @@ export const generateServiceAction = async (rawName: string, options: ServiceOpt
 
     // Ensure database-specific packages are installed
     if (orm === 'prisma') {
-        await ensurePackagesInstalled(projectDir, ['@prisma/client', getPrismaAdapterPackage(database), '@nest-extended/prisma']);
-        await ensureDevPackagesInstalled(projectDir, ['prisma']);
+        await ensurePackagesInstalled(projectDir, [
+            prismaPackage('@prisma/client'),
+            prismaPackage(getPrismaAdapterPackage(database)),
+            '@nest-extended/prisma',
+        ]);
+        await ensureDevPackagesInstalled(projectDir, [prismaPackage('prisma')]);
         await ensurePrismaSetup(projectDir, database);
     } else if (orm === 'typeorm') {
         await ensurePackagesInstalled(projectDir, ['@nestjs/typeorm', 'typeorm', 'dotenv', getTypeOrmDriverPackage(sqlProvider as string), '@nest-extended/typeorm']);

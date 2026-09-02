@@ -459,6 +459,7 @@ packages/cli/src/
 ├── lib/
 │   ├── create-file.ts               ← File creation utility
 │   ├── ensure-app-module-import.ts  ← Shared bracket-matching insert into app.module.ts
+│   ├── prisma-packages.ts           ← PRISMA_VERSION_RANGE ('^7') + pinned package specs
 │   ├── update-app-module.ts         ← Registers a feature module / EventEmitterModule
 │   ├── configure-prisma-generator.ts ← Normalize the Prisma 7 generator block + gitignore
 │   ├── resolve-orm.ts               ← Two-step database+ORM resolution (`--db`/`--orm` + prompts)
@@ -495,7 +496,7 @@ When generating a new app, the CLI:
 3. Prompts for validation library: `zod` or `class-validator`
 4. Installs the base set + the ORM set:
    - Mongoose: `@nestjs/mongoose`, `mongoose`, `@nest-extended/mongoose`
-   - Prisma: `@prisma/client`, a driver adapter, `@nest-extended/prisma` (dev `prisma`)
+   - Prisma: `@prisma/client@^7`, a driver adapter (`^7`), `@nest-extended/prisma` (dev `prisma@^7`) — see guideline 18
    - TypeORM: `@nestjs/typeorm`, `typeorm`, `dotenv`, a driver (`pg`/`mysql2`/`better-sqlite3`), `@nest-extended/typeorm` (dev `ts-node`)
 5. Optionally installs: `@nestjs/jwt`, `bcrypt`, `@types/bcrypt`
 6. Configures `app.module.ts` with `ConfigModule`, `ClsModule`, `NestExtendedModule.forRoot()` (soft delete config), the database module (`MongooseModule.forRoot()` / `PrismaModule` / `DatabaseModule`), the matching `GlobalExceptionFilter` (APP_FILTER), and `NullResponseInterceptor` (APP_INTERCEPTOR)
@@ -725,6 +726,7 @@ The `release.js` script:
 14. **`on*` hooks are detached** — they run after the response is sent, cannot change it, and their throws are logged, not raised. Only `before*` hooks can alter input. See `docs/events.md`.
 15. **Events need `NestExtendedModule.forRoot()`** — it registers the `ServiceEventsRegistry` that wires `@ServiceEvents()` classes, and the `@UseBefore`/`@UseAfter` interceptor.
 16. **An events class needs both decorators** — `@Injectable()` *and* `@ServiceEvents(TheService)`, and must be in the module's `providers`. It imports the service as a value; the service imports it with `import type` to avoid a runtime cycle.
+17. **Prisma is pinned to v7** — `packages/cli/src/lib/prisma-packages.ts` holds `PRISMA_VERSION_RANGE`. Prisma 8 ("Prisma Next") drops `prisma init --datasource-provider`, `prisma generate` and `prisma db push`, moves the ORM commands under `prisma orm`, and changes the client layout; the `prisma` CLI also ships an 8.0.0 RC on the `latest` npm tag. Everything the generator emits targets Prisma 7. Use `prismaPackage(name)` when adding a Prisma dependency so it stays pinned.
 7. **Build before publish** — always run `yarn nx run-many -t build` to verify changes compile.
 8. **Version sync** — use `node scripts/release.js <ver>` to keep all package versions in sync.
 9. **Read the README files** — for detailed API docs, reference the README paths listed in Section 3.

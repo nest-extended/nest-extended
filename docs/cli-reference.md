@@ -73,11 +73,19 @@ will be asked for each.
 2. **Installs runtime dependencies** into the new app:
    - Always: `@nestjs/config`, `nestjs-cls`, `qs`, `@nest-extended/core@<cliVersion>`, `@nest-extended/decorators@<cliVersion>`.
    - Mongoose: `@nestjs/mongoose`, `mongoose`, `@nest-extended/mongoose@<cliVersion>`.
-   - Prisma (PostgreSQL/MySQL/SQLite): `@prisma/client`, a database-specific driver adapter (`@prisma/adapter-pg`, `@prisma/adapter-mariadb`, or `@prisma/adapter-better-sqlite3`), and `@nest-extended/prisma@<cliVersion>`.
+   - Prisma (PostgreSQL/MySQL/SQLite): `@prisma/client@^7`, a database-specific driver adapter (`@prisma/adapter-pg`, `@prisma/adapter-mariadb`, or `@prisma/adapter-better-sqlite3`) also at `^7`, and `@nest-extended/prisma@<cliVersion>`.
    - TypeORM (PostgreSQL/MySQL/SQLite): `@nestjs/typeorm`, `typeorm`, `dotenv`, a database driver (`pg`, `mysql2`, or `better-sqlite3`), and `@nest-extended/typeorm@<cliVersion>`.
    - Validator: `zod`, **or** `class-validator` + `class-transformer`.
    - With `--auth`: `@nestjs/jwt`, `bcrypt`.
-3. **Installs dev dependencies**: `@types/qs`, plus `@types/bcrypt` (auth), `prisma` (Prisma), and `ts-node` (TypeORM, for the schema-sync/migration scripts).
+3. **Installs dev dependencies**: `@types/qs`, plus `@types/bcrypt` (auth), `prisma@^7` (Prisma), and `ts-node` (TypeORM, for the schema-sync/migration scripts).
+
+   > **Prisma is pinned to v7.** Prisma 8 ("Prisma Next") is a different product: `prisma init
+   > --datasource-provider`, `prisma generate` and `prisma db push` no longer exist, the ORM
+   > commands moved under `prisma orm`, and the client layout changed. Everything the generator
+   > emits — the `prisma-client` generator block, the `../generated/prisma/client` import in
+   > `PrismaService`, the driver adapters — targets Prisma 7. The `prisma` CLI also currently
+   > ships an 8.0.0 release candidate on the `latest` npm tag, so leaving it unpinned installs
+   > a pre-release alongside a 7.x `@prisma/client`.
 4. **Prisma only:** runs `npx prisma init --datasource-provider <postgresql|mysql|sqlite>`, normalizes the generator block for NestJS (`provider = "prisma-client"`, `output = "../src/generated/prisma"`, `moduleFormat = "cjs"`), adds `/src/generated` to `.gitignore`, and creates `src/prisma/prisma.service.ts` + `src/prisma/prisma.module.ts`.
    **TypeORM only:** creates `src/database/data-source.ts` (a shared `DataSource`) and `src/database/database.module.ts` (`TypeOrmModule.forRoot` with `autoLoadEntities: true` and `synchronize`/`migrationsRun` driven by `DB_SYNCHRONIZE`), adds `db:sync` + `migration:*` scripts to `package.json`, and (SQLite) ignores `dev.db`.
 5. **Rewrites `src/app.module.ts`** to import and configure `ConfigModule`, `ClsModule`, `NestExtendedModule.forRoot({ softDelete, filters: [] })`, the database module (`MongooseModule.forRoot(...)`, `PrismaModule`, or `DatabaseModule`), and registers the matching `GlobalExceptionFilter` (`APP_FILTER`) and `NullResponseInterceptor` (`APP_INTERCEPTOR`).
@@ -145,7 +153,7 @@ Note the controller route uses the **raw** argument you typed (`user-profile`,
 ### What it does
 
 1. **Ensures validator packages** are installed (`zod`, or `class-validator` + `class-transformer`) — installs missing ones using the detected package manager (`yarn.lock`→yarn, `pnpm-lock.yaml`→pnpm, else npm).
-2. **Prisma only:** ensures `@prisma/client`, the driver adapter, `@nest-extended/prisma`, and dev `prisma` are installed; runs `prisma init` if there is no `prisma/schema.prisma`; creates `src/prisma/prisma.service.ts` + `prisma.module.ts` if missing.
+2. **Prisma only:** ensures `@prisma/client@^7`, the driver adapter (also `^7`), `@nest-extended/prisma`, and dev `prisma@^7` are installed (see the pin note under [`g app`](#nest-cli-g-app-name)); runs `prisma init` if there is no `prisma/schema.prisma`; creates `src/prisma/prisma.service.ts` + `prisma.module.ts` if missing.
    **TypeORM only:** ensures `@nestjs/typeorm`, `typeorm`, `dotenv`, the driver, `@nest-extended/typeorm`, and dev `ts-node` are installed; creates `src/database/data-source.ts` + `database.module.ts` if missing.
 3. **Detects whether auth exists** (`src/services/auth/` present). If so, generated schemas/models/entities include `createdBy` / `updatedBy` / `deletedBy` audit fields.
 4. **Generates files:**

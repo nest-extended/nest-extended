@@ -45,6 +45,9 @@ For each case, in order:
    [The service-event checks](#the-service-event-checks-1216))
 3. **Prepare the schema:**
    - Prisma: `npx prisma generate` then `npx prisma db push`
+     (Prisma 7.10+ blocks `db push` when an AI agent invokes it and requires explicit human
+     consent — see [`../scripts/e2e/README.md`](../scripts/e2e/README.md) if you are running
+     the suite that way. Generated apps pin Prisma to `^7`; Prisma 8 is a different CLI.)
    - TypeORM: `npm run db:sync` (the generated manual schema-sync script; `DB_SYNCHRONIZE` defaults to `false`)
    - Mongoose: nothing
    (Prisma/TypeORM prep is retried up to 5 times — a freshly started DB can accept TCP before it accepts queries.)
