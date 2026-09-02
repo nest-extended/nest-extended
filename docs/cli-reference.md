@@ -24,6 +24,7 @@ npm install -D @nest-extended/cli      # per-project dev dependency
 | `nest-cli generate service <name>` | `g service` | `<name>` (required) | Generate a CRUD resource bundle and register it |
 | `nest-cli generate auth` | `g auth` | — | Add Auth + Users modules to an existing app |
 | `nest-cli migration run` | `m run` | — | Run version-upgrade codemods on `src/**/*.ts` |
+| `nest-cli migration events` | `m events` | — | Switch controllers to the event-firing service methods |
 | `nest-cli version` | `v` | — | Print the CLI version |
 | `nest-cli help` | — | — | Print a formatted help screen |
 
@@ -117,9 +118,15 @@ resource and registers its module in `src/app.module.ts`.
 | `--database <type>` | `--db`, `-d` | `PostgreSQL` \| `MySQL` \| `SQLite` \| `MongoDB` |
 | `--orm <type>` | `-o` | `prisma` \| `typeorm` \| `mongoose` |
 | `--validator <type>` | `-v` | `zod` \| `class-validator` |
+| `--events` / `--skip-events` | — | generate `{name}.events.ts` (default: **yes**) |
+| `--broadcast` / `--skip-broadcast` | — | also broadcast events via `@nestjs/event-emitter` (default: **no**) |
 
-Omitted flags are prompted (defaults: database `MongoDB`, ORM `Prisma` for SQL, `zod`).
-Use the **same database + ORM** as the app you are adding the resource to.
+Omitted flags are prompted (defaults: database `MongoDB`, ORM `Prisma` for SQL, `zod`,
+events **yes**, broadcast **no**). Use the **same database + ORM** as the app you are
+adding the resource to.
+
+> `--broadcast` only applies when events are generated, and implies `--events`-style
+> behaviour: it is not asked if you answered no to the events prompt.
 
 ### Name transformation
 
@@ -148,6 +155,7 @@ Note the controller route uses the **raw** argument you typed (`user-profile`,
    - `src/services/<path>/<name>.module.ts` — `MongooseModule.forFeature(...)`
    - `src/services/<path>/<name>.service.ts` — `extends NestService`
    - `src/services/<path>/<name>.controller.ts` — CRUD controller
+   - `src/services/<path>/<name>.events.ts` — lifecycle hooks (unless `--skip-events`); see [events.md](events.md)
    - `src/services/<path>/dto/<name>.dto.ts` — Zod schemas **or** class-validator DTOs
    - `src/services/<path>/<name>.service.spec.ts` and `<name>.controller.spec.ts`
 
@@ -160,7 +168,13 @@ Note the controller route uses the **raw** argument you typed (`user-profile`,
    `TypeOrmModule.forFeature([<Name>])` and the service injects the repository via
    `@InjectRepository`.
 5. **Registers the module** in `src/app.module.ts` (import + `imports[]` entry; skipped if already present).
-6. **Runs `<pm> run lint`**.
+6. **With `--broadcast`:** installs `@nestjs/event-emitter` and adds `EventEmitterModule.forRoot()` to `src/app.module.ts`.
+7. **Runs `<pm> run lint`**.
+
+> Generated services get an events class registered in the module's `providers`, and the
+> controller calls the **event-firing** methods (`find`, `create`, …) rather than the
+> underscore ones. If `NestExtendedModule.forRoot()` is missing from `src/app.module.ts`
+> the CLI warns, because nothing will wire the events class.
 
 > **After generating a Prisma resource,** apply the new model to your database:
 > `npx prisma generate && npx prisma db push` (or create a migration).
@@ -177,6 +191,8 @@ nest-cli g service product --db MongoDB --orm mongoose -v zod
 nest-cli g service order-item --db PostgreSQL --orm typeorm -v class-validator
 nest-cli g service order-item --db PostgreSQL --orm prisma -v zod
 nest-cli g service qna/category --db MongoDB --orm mongoose  # nested under src/services/qna/
+nest-cli g service product --db MongoDB --orm mongoose -v zod --skip-events
+nest-cli g service product --db MongoDB --orm mongoose -v zod --events --broadcast
 ```
 
 ---
@@ -224,6 +240,40 @@ nest-cli m run
 
 It prints each updated file and a final count. Files with no matching imports are
 left untouched.
+
+---
+
+## `nest-cli migration events` (`m events`)
+
+Switches controllers from the event-free `_find` / `_get` / `_create` / `_patch` /
+`_remove` to their event-firing counterparts, so existing projects start firing service
+events. See [events.md](events.md) for what changes.
+
+By default it only touches `src/**/*.controller.ts` — internal service-to-service calls
+should keep using the underscore methods so they stay event-free.
+
+| Flag | Purpose |
+|---|---|
+| `--dry-run` | Print the changes without writing anything |
+| `-y, --yes` | Apply without the confirmation prompt |
+| `--path <glob>` | Migrate a different set of files (default `src/**/*.controller.ts`) |
+
+```bash
+cd my-app
+nest-cli m events --dry-run
+```
+
+```
+  src/services/company/company.controller.ts
+    _find -> find (line 24)
+    _get -> get (line 31)
+    ...
+
+2 file(s), 10 replacement(s).
+```
+
+It then asks before writing. Because `on*` hooks are detached and cannot alter a
+response, this migration does not change any endpoint's output.
 
 ---
 

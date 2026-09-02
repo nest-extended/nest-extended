@@ -99,7 +99,8 @@ nest-cli generate auth
 Generates a complete resource bundle including:
 - **Module**: Registers the controller and service, imports MongooseModule.forFeature
 - **Service**: Extends `NestService` from `@nest-extended/mongoose`
-- **Controller**: Custom controller with full CRUD (find, get, create, patch, delete) using `@ModifyBody(setCreatedBy())` and `@User()` decorators
+- **Controller**: Custom controller with full CRUD (find, get, create, patch, delete) using `@ModifyBody(setCreatedBy())` and `@User()` decorators. It calls the **event-firing** service methods (`find`, `create`, …) rather than the underscore ones.
+- **Events**: A `{name}.events.ts` lifecycle-hooks class, registered in the module's providers (skip with `--skip-events`)
 - **Schema**: Mongoose schema with `timestamps` and soft delete fields (only injects `createdBy`, `updatedBy`, `deletedBy` mapping if Auth was generated)
 - **DTO**: Data Transfer Object with Zod validation (Create, Patch, Remove schemas + inferred types)
 - **Specs**: Unit tests for service and controller
@@ -122,6 +123,14 @@ nest-cli generate service <name> [options]
 |---|---|---|---|
 | `--database <type>` | `-d`, `--db` | `Mongoose` \| `PostgreSQL` \| `MySQL` \| `SQLite` | Prompts interactively |
 | `--validator <type>` | `-v` | `zod` \| `class-validator` | Prompts interactively |
+| `--events` / `--skip-events` | — | generate `{name}.events.ts` | Prompts (default **yes**) |
+| `--broadcast` / `--skip-broadcast` | — | broadcast events via `@nestjs/event-emitter` | Prompts (default **no**) |
+
+With `--broadcast` the CLI also installs `@nestjs/event-emitter` and adds
+`EventEmitterModule.forRoot()` to `src/app.module.ts`.
+
+> Service events are wired at boot by `NestExtendedModule.forRoot()`. If that is missing
+> from `src/app.module.ts`, the CLI warns — the generated events class would never fire.
 
 **Examples:**
 
@@ -137,12 +146,17 @@ nest-cli g service user-profile -d Mongoose -v class-validator
 
 # Fully interactive (original behavior — prompts for everything)
 nest-cli g service user-profile
+
+# Skip the events file, or wire up global broadcasting
+nest-cli g service category --db Mongoose -v zod --skip-events
+nest-cli g service category --db Mongoose -v zod --events --broadcast
 ```
 
 **Generated files for `nest-cli g service user-profile`:**
 - `src/services/userProfile/userProfile.module.ts`
 - `src/services/userProfile/userProfile.service.ts`
 - `src/services/userProfile/userProfile.controller.ts`
+- `src/services/userProfile/userProfile.events.ts` (unless `--skip-events`)
 - `src/services/userProfile/dto/userProfile.dto.ts`
 - `src/schemas/userProfile.schema.ts`
 - `src/services/userProfile/userProfile.service.spec.ts`
@@ -168,6 +182,26 @@ nest-cli m run
 # or
 nest-cli migration run
 ```
+
+### Migration Events (`m events`)
+
+Switches existing controllers from the event-free `_find` / `_get` / `_create` / `_patch` /
+`_remove` to their event-firing counterparts, so a project generated before service events
+existed starts firing them.
+
+```bash
+nest-cli m events --dry-run     # show what would change
+nest-cli m events               # apply, after confirming
+nest-cli m events -y            # apply without asking
+nest-cli m events --path 'src/**/*.ts'
+```
+
+By default it only touches `src/**/*.controller.ts` — service-to-service calls should keep
+using the underscore methods so they stay event-free. It prints every replacement with its
+file and line before writing.
+
+Because `on*` hooks are detached and cannot alter a response, this migration does not change
+any endpoint's output.
 
 ### Version
 

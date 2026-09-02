@@ -15,6 +15,10 @@ generateCommand
     .option('--db <type>', 'Alias for --database')
     .option('-o, --orm <type>', 'ORM/ODM: prisma | typeorm | mongoose')
     .option('-v, --validator <type>', 'Validation library: zod | class-validator')
+    .option('--events', 'Generate a {name}.events.ts lifecycle hooks file (skips prompt)')
+    .option('--skip-events', 'Skip the events file (skips prompt)')
+    .option('--broadcast', 'Also broadcast events globally via @nestjs/event-emitter (skips prompt)')
+    .option('--skip-broadcast', 'Do not broadcast events globally (skips prompt)')
     .action((name, options) => generateServiceAction(name, options));
 
 generateCommand

@@ -32,8 +32,10 @@ generated resource when an `auth` module exists in the project at generation tim
 `NestService`'s constructor options default to:
 
 ```
-{ multi: false, softDelete: true, pagination: true }
+{ multi: false, softDelete: true, pagination: true, events: true, broadcast: false }
 ```
+
+(`events` and `broadcast` are unrelated to soft delete — see [events.md](events.md).)
 
 With `softDelete: true`:
 

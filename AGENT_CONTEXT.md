@@ -86,23 +86,28 @@ These are all the README files in the repository. Read these for detailed featur
 
 **Path**: `packages/core/`
 **NPM**: `@nest-extended/core`
-**Dependencies**: `tslib`, `qs`, `@nest-extended/decorators` (peer), `nestjs-cls` (peer), `@nestjs/common` (peer)
+**Dependencies**: `tslib`, `qs`, `@nest-extended/decorators`, `nestjs-cls` (peer), `@nestjs/common` (peer), `@nestjs/core` (peer), `@nestjs/event-emitter` (optional — only for `broadcast`)
 
 #### Source Layout
 
 ```
 packages/core/src/
 ├── index.ts                          ← Public exports
-├── index.d.ts                        ← ServiceOptions type declaration
 ├── lib/
 │   ├── nest.controller.ts            ← NestController<T> base class
-│   └── nest-extended.module.ts       ← NestExtendedModule dynamic module
+│   ├── nest-extended.module.ts       ← NestExtendedModule dynamic module
+│   ├── nest-service-base.ts          ← NestServiceBase — find/get/create/patch/remove + event dispatch
+│   ├── nest-service-events.ts        ← NestServiceEvents, NestServiceHooks, EventContext
+│   ├── service-events.decorator.ts   ← @ServiceEvents(TheService)
+│   ├── service-events.registry.ts    ← Discovery-based wiring at boot
+│   └── event-bus.ts                  ← Optional @nestjs/event-emitter holder
 ├── common/
 │   ├── cls.helper.ts                 ← getCurrentUser(), CLS_KEYS
 │   ├── options.ts                    ← Default options object
 │   └── constants.ts                  ← WeekDays enum, EachSlotDurationInMinutes
 ├── interceptors/
-│   └── null-response.interceptor.ts  ← NullResponseInterceptor
+│   ├── null-response.interceptor.ts  ← NullResponseInterceptor
+│   └── use-hooks.interceptor.ts      ← Runs @UseBefore / @UseAfter
 └── types/
     ├── nest-extended.config.ts       ← NestExtendedConfig, SoftDeleteConfig, QueryParserConfig, NEST_EXTENDED_CONFIG
     ├── ServiceOptions.ts             ← ServiceOptions<T>, NestServiceOptions
@@ -120,12 +125,20 @@ packages/core/src/
 | `getCurrentUser<T>()` | Function | Retrieve authenticated user from CLS context. Returns `undefined` if unavailable. |
 | `CLS_KEYS` | Const | `{ USER: 'user' }` — CLS storage keys. |
 | `NullResponseInterceptor` | Interceptor | Throws `NotFoundException` when GET handlers return `null`/`undefined`. |
-| `NestExtendedConfig` | Interface | `{ softDelete?: SoftDeleteConfig, queryParser?: QueryParserConfig \| boolean }` |
+| `NestExtendedConfig` | Interface | `{ softDelete?: SoftDeleteConfig, queryParser?: QueryParserConfig \| boolean, filters?: Type<ExceptionFilter>[], events?: boolean }` |
 | `SoftDeleteConfig` | Interface | `{ getQuery: () => Record, getData: (user) => Record }` |
 | `QueryParserConfig` | Interface | `{ depth?: number, arrayLimit?: number, allowDots?: boolean }` — defaults: 20, 100, false |
 | `NEST_EXTENDED_CONFIG` | Symbol | Injection token for `NestExtendedConfig`. |
-| `ServiceOptions<T>` | Interface | Contract: `_find`, `_get`, `_create`, `_patch`, `_remove`. |
-| `NestServiceOptions` | Type | `{ multi?: boolean, softDelete?: boolean, pagination?: boolean }` |
+| `ServiceOptions<T>` | Interface | Contract: `_find`, `_get`, `_create`, `_patch`, `_remove` (plus optional `find`/`get`/`create`/`patch`/`remove`). |
+| `NestServiceOptions` | Type | `{ multi?: boolean, softDelete?: boolean, pagination?: boolean, events?: boolean, broadcast?: string \| false }` |
+| `NestServiceBase<D, E>` | Class | Shared base for every ORM's `NestService`. Adds `find`/`get`/`create`/`patch`/`remove`, `emit()`, `registerEvents()`, `whenSettled()`. |
+| `NestServiceEvents<S, D>` | Class | Base for a `{name}.events.ts` class. Optional hooks `beforeFind`/`onFind`/… and `onError`. `this.service` is back-assigned at boot. |
+| `NestServiceHooks<S, D>` | Interface | The hook signatures `NestServiceEvents` merges in. |
+| `EventContext<S>` | Interface | `{ user?, service, hook?, id?, query?, data?, findOptions? }` — second argument to every hook. |
+| `ServiceEvents(ServiceClass)` | Decorator | Attaches an events class to its service. |
+| `ServiceEventsRegistry` | Provider | Discovers `@ServiceEvents()` classes at boot and wires them. Registered by `forRoot()`. |
+| `UseHooksInterceptor` | Interceptor | Runs `@UseBefore` / `@UseAfter`. Registered globally by `forRoot()`. |
+| `getEventBus` / `setEventBus` | Function | Holder for the optional `@nestjs/event-emitter` bus used by `broadcast`. |
 | `PaginatedResponse<D>` | Interface | `{ total: number, $limit: number, $skip: number, data: D[] }` |
 | `RequestBody` | Type | Re-export from `@nest-extended/decorators`. |
 | `WeekDays` | Enum | `sunday` through `saturday`. |
@@ -169,9 +182,10 @@ packages/mongoose/src/
 | `_patch` | `(id, data, query?) → D \| D[] \| null` | Update by ID or bulk update by query (id=null). Uses `findOneAndUpdate` (single) or `updateMany` (bulk). |
 | `_remove` | `(id, query?, user?) → D \| D[] \| null` | Soft delete (patches `deleted=true`, `deletedBy`, `deletedAt`) or hard delete depending on config. User from param or CLS fallback. |
 | `getCount` | `(filter) → number` | Count documents matching filter. |
+| `find` / `get` / `create` / `patch` / `remove` | same signatures as the `_`-prefixed methods | Identical behaviour, but they dispatch lifecycle events to the attached events class. Call these from controllers, the underscore ones from other services. |
 
 **Constructor**: `new NestService(model, serviceOptions?, softDeleteConfig?)`
-- `serviceOptions`: `{ multi: false, softDelete: true, pagination: true }` (defaults)
+- `serviceOptions`: `{ multi: false, softDelete: true, pagination: true, events: true, broadcast: false }` (defaults)
 - `softDeleteConfig`: Custom `SoftDeleteConfig` or falls back to `{ deleted: { $ne: true } }` filter
 
 #### Query Special Parameters
@@ -264,10 +278,11 @@ packages/prisma/src/
 | `_patch` | `(id, data, query?) → T \| T[] \| null` | Update by ID or bulk update by query (id=null). Uses `update` (single) or `updateMany` (bulk). |
 | `_remove` | `(id, query?, user?) → T \| T[] \| null` | Soft delete (patches `deleted=true`, `deletedBy`, `deletedAt`) or hard delete depending on config. User from param or CLS fallback. |
 | `getCount` | `(filter) → number` | Count records matching filter. |
+| `find` / `get` / `create` / `patch` / `remove` | same signatures as the `_`-prefixed methods | Identical behaviour, but they dispatch lifecycle events to the attached events class. Call these from controllers, the underscore ones from other services. |
 
 **Constructor**: `new NestService(prismaModel, serviceOptions?, softDeleteConfig?)`
 - `prismaModel`: Prisma delegate (e.g., `prisma.user`)
-- `serviceOptions`: `{ multi: false, softDelete: true, pagination: true }` (defaults)
+- `serviceOptions`: `{ multi: false, softDelete: true, pagination: true, events: true, broadcast: false }` (defaults)
 - `softDeleteConfig`: Custom `SoftDeleteConfig` or falls back to `{ deleted: { not: true } }` filter
 
 #### Query Operators (FeathersJS-style)
@@ -368,11 +383,12 @@ packages/typeorm/src/
 
 #### NestService — Full Method Reference
 
-Same methods/signatures as Prisma: `_find`, `_get`, `_create`, `_patch`, `_remove`, `getCount`.
+Same methods/signatures as Prisma: `_find`, `_get`, `_create`, `_patch`, `_remove`, `getCount`,
+plus the event-firing `find`, `get`, `create`, `patch`, `remove`.
 
 **Constructor**: `new NestService(repository, serviceOptions?, softDeleteConfig?)`
 - `repository`: TypeORM `Repository<T>` (inject via `@InjectRepository(Entity)`)
-- `serviceOptions`: `{ multi: false, softDelete: true, pagination: true }` (defaults)
+- `serviceOptions`: `{ multi: false, softDelete: true, pagination: true, events: true, broadcast: false }` (defaults)
 - `softDeleteConfig`: defaults to `{ deleted: { $ne: true } }` (converted to `{ deleted: Not(true) }`)
 
 #### Query Operators (FeathersJS-style → TypeORM)
@@ -438,10 +454,12 @@ packages/cli/src/
 │   ├── generate-app.ts              ← `g app <name>` — scaffold full NestJS app
 │   ├── generate-auth.ts             ← `g auth` — add auth to existing app
 │   ├── generate-service.ts          ← `g service <name>` — generate resource bundle
-│   └── migration.ts                  ← `m run` — run migration scripts
+│   ├── migration.ts                  ← `m run` — run migration scripts
+│   └── migration-events.ts           ← `m events` — rewrite controller `_find` → `find`
 ├── lib/
 │   ├── create-file.ts               ← File creation utility
-│   ├── update-app-module.ts         ← Auto-update app.module.ts imports & module array
+│   ├── ensure-app-module-import.ts  ← Shared bracket-matching insert into app.module.ts
+│   ├── update-app-module.ts         ← Registers a feature module / EventEmitterModule
 │   ├── configure-prisma-generator.ts ← Normalize the Prisma 7 generator block + gitignore
 │   ├── resolve-orm.ts               ← Two-step database+ORM resolution (`--db`/`--orm` + prompts)
 │   ├── generate-auth-services.ts    ← Mongoose Auth/Users file generation
@@ -449,6 +467,7 @@ packages/cli/src/
 │   └── generate-typeorm-auth-services.ts ← TypeORM Auth/Users files + Users entity
 └── templates/
     ├── module.template.ts / service.template.ts / controller.template.ts ← Mongoose variants
+    ├── events.template.ts           ← `{name}.events.ts` (serves all three ORMs)
     ├── schema.template.ts           ← Mongoose schema with soft delete + auth fields
     ├── dto.template.ts / dto-class-validator.template.ts ← Zod / class-validator DTOs
     ├── service.spec.template.ts / controller.spec.template.ts ← unit tests (shared)
@@ -551,7 +570,8 @@ packages/decorators/src/
 ├── index.ts                     ← Public exports
 ├── User.decorator.ts            ← @User() param decorator
 ├── Public.decorator.ts          ← @Public() method decorator + IS_PUBLIC_KEY
-└── ModifyBody.decorator.ts      ← @ModifyBody() param decorator + setCreatedBy, RequestBody type
+├── ModifyBody.decorator.ts      ← @ModifyBody() param decorator + setCreatedBy, RequestBody type
+└── UseHooks.decorator.ts        ← @UseBefore() / @UseAfter() + ControllerContext, EventHandler
 ```
 
 #### Exported API
@@ -565,6 +585,12 @@ packages/decorators/src/
 | `setCreatedBy(key?)` | Function | Transform for `@ModifyBody` — sets `body[key]` to `user._id` (default key: `'createdBy'`) |
 | `RequestBody<TBody, TUser>` | Type | Typed request: `Omit<Request, 'body'|'user'> & { user: TUser, body: TBody }` |
 | `ModifyBodyFn<TBody, TUser>` | Type | Transform function type for `@ModifyBody` |
+| `UseBefore(...handlers)` | Class/Method Decorator | Runs handlers before the route handler, awaited; they may mutate `ctx.body`/`ctx.query` |
+| `UseAfter(...handlers)` | Class/Method Decorator | Runs handlers after the response, detached; cannot alter it, failures are logged per handler |
+| `UseHandler` | Type | `((ctx: ControllerContext) => any) \| Type<EventHandler>` |
+| `EventHandler` | Interface | `{ handle(ctx: ControllerContext): any }` — implement it on an injectable provider |
+| `ControllerContext` | Interface | `{ request, response, user?, params, query, body, result?, handler, controller }` |
+| `USE_BEFORE` / `USE_AFTER` | Const | Metadata keys read by `UseHooksInterceptor` in core |
 
 ---
 
@@ -695,6 +721,10 @@ The `release.js` script:
 10. **Query parser is auto-configured** — `NestExtendedModule.forRoot()` automatically sets up `qs` as the Express query parser (depth: 20, arrayLimit: 100). Disable with `queryParser: false`.
 11. **Validator selection** — `g service` and `g app` prompt for `zod` or `class-validator`. Missing packages are auto-installed.
 12. **Schema select: false** — generated schemas use `select: false` on `deleted`, `deletedAt`, `deletedBy`, `updatedBy` to hide soft-delete/audit fields from default queries.
+13. **`_find` vs `find`** — the underscore methods never fire events; the non-underscore ones do. Call `_find`/`_create`/… for internal service-to-service work, `find`/`create`/… from controllers. Generated controllers use the latter; `nest-cli m events` migrates older ones.
+14. **`on*` hooks are detached** — they run after the response is sent, cannot change it, and their throws are logged, not raised. Only `before*` hooks can alter input. See `docs/events.md`.
+15. **Events need `NestExtendedModule.forRoot()`** — it registers the `ServiceEventsRegistry` that wires `@ServiceEvents()` classes, and the `@UseBefore`/`@UseAfter` interceptor.
+16. **An events class needs both decorators** — `@Injectable()` *and* `@ServiceEvents(TheService)`, and must be in the module's `providers`. It imports the service as a value; the service imports it with `import type` to avoid a runtime cycle.
 7. **Build before publish** — always run `yarn nx run-many -t build` to verify changes compile.
 8. **Version sync** — use `node scripts/release.js <ver>` to keep all package versions in sync.
 9. **Read the README files** — for detailed API docs, reference the README paths listed in Section 3.

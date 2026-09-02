@@ -194,7 +194,8 @@ clean HTTP responses (see [generated-app.md](generated-app.md#error-handling)).
 ### 3. Create a service
 
 Extend `NestService` to get `_find`, `_get`, `_create`, `_patch`, `_remove`, and
-`getCount` for free.
+`getCount` for free — plus `find`, `get`, `create`, `patch`, `remove`, which do the same
+thing but also dispatch lifecycle events (see [events.md](events.md)).
 
 **Mongoose:**
 

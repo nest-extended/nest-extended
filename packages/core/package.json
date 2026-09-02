@@ -28,6 +28,7 @@
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "dependencies": {
+    "@nest-extended/decorators": "1.0.0",
     "qs": "^6.13.0",
     "tslib": "^2.3.0"
   }

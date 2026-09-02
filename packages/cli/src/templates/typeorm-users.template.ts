@@ -100,12 +100,12 @@ export class UsersController {
 
   @Get()
   async find(@Query() query: Record<string, any>) {
-    return await this.usersService._find(query);
+    return await this.usersService.find(query);
   }
 
   @Get('/:id')
   async get(@Query() query: Record<string, any>, @Param('id') id: string) {
-    return await this.usersService._get(id, query);
+    return await this.usersService.get(id, query);
   }
 
   @Public()
@@ -118,7 +118,7 @@ export class UsersController {
     const saltOrRounds = 10;
     const password = await bcrypt.hash(createUsersDto.password, saltOrRounds);
 
-    const user = await this.usersService._create({
+    const user = await this.usersService.create({
       ...createUsersDto,
       password,
     }) as Record<string, any>;
@@ -148,7 +148,7 @@ export class UsersController {
       );
     }
 
-    return await this.usersService._patch(id, patchUsersDto, query);
+    return await this.usersService.patch(id, patchUsersDto, query);
   }
 }
 `;

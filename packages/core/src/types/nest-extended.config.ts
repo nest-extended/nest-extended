@@ -53,6 +53,14 @@ export interface NestExtendedConfig {
      * filters: [MongooseValidationExceptionFilter, ZodValidationExceptionFilter]
      */
     filters?: Type<ExceptionFilter>[];
+
+    /**
+     * Service events and the `@UseBefore` / `@UseAfter` decorators.
+     * - `true` or `undefined` (default): wires every `@ServiceEvents()` class at boot
+     *   and registers the controller hooks interceptor
+     * - `false`: disables both app-wide, whatever individual services declare
+     */
+    events?: boolean;
 }
 
 /**

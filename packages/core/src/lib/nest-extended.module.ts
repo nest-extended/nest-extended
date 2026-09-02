@@ -1,7 +1,9 @@
-import { APP_FILTER } from '@nestjs/core';
+import { APP_FILTER, APP_INTERCEPTOR, DiscoveryModule } from '@nestjs/core';
 import { DynamicModule, Inject, Module, OnApplicationBootstrap, Provider } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { NestExtendedConfig, NEST_EXTENDED_CONFIG } from '../types/nest-extended.config';
+import { UseHooksInterceptor } from '../interceptors/use-hooks.interceptor';
+import { ServiceEventsRegistry } from './service-events.registry';
 import * as qs from 'qs';
 
 @Module({})
@@ -37,15 +39,27 @@ export class NestExtendedModule implements OnApplicationBootstrap {
             useClass: FilterClass,
         }));
 
+        // Service events wiring and the @UseBefore / @UseAfter interceptor.
+        // Opt out app-wide with `events: false`.
+        const eventProviders: Provider[] =
+            config.events === false
+                ? []
+                : [
+                      ServiceEventsRegistry,
+                      { provide: APP_INTERCEPTOR, useClass: UseHooksInterceptor },
+                  ];
+
         return {
             module: NestExtendedModule,
             global: true,
+            imports: [DiscoveryModule],
             providers: [
                 {
                     provide: NEST_EXTENDED_CONFIG,
                     useValue: config,
                 },
                 ...filterProviders,
+                ...eventProviders,
             ],
             exports: [NEST_EXTENDED_CONFIG],
         };
