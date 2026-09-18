@@ -97,10 +97,12 @@ src/
 │   ├── generate-app.ts      # `g app` — runs `nest new`, installs deps, rewrites app.module.ts
 │   ├── generate-service.ts  # `g service` — name transform, file emit, model/schema, registration
 │   ├── generate-auth.ts     # `g auth` — Mongoose auth stack into an existing app
-│   └── migration.ts         # `m run` — import-rewrite codemods
+│   ├── migration.ts         # `m run` — import-rewrite codemods
+│   └── migration-events.ts  # `m events` — controller `_find` -> `find` codemod
 ├── lib/
 │   ├── create-file.ts                 # mkdir -p + write
-│   ├── update-app-module.ts           # bracket-matching insert of a module import + imports[] entry
+│   ├── ensure-app-module-import.ts    # bracket-matching insert of an import + imports[] entry
+│   ├── update-app-module.ts           # registers a feature module / EventEmitterModule via the above
 │   ├── configure-prisma-generator.ts  # normalize the Prisma 7 generator block + gitignore
 │   ├── resolve-orm.ts                 # two-step database+ORM resolution (`--db`/`--orm` + prompts)
 │   ├── generate-auth-services.ts      # writes the Mongoose auth/users files
@@ -122,10 +124,29 @@ Template naming convention:
 - `prisma-*.template.ts` → Prisma variant (e.g. `prisma-controller.template.ts`, `prisma-model.template.ts`, `prisma-setup.template.ts`).
 - `typeorm-*.template.ts` → TypeORM variant (e.g. `typeorm-controller.template.ts`, `typeorm-entity.template.ts`, `typeorm-setup.template.ts`).
 - `*-class-validator.template.ts` → the class-validator DTO alternative to the Zod DTO.
+- `events.template.ts` is the exception: one function serves all three ORMs, branching only
+  on the import block and the document type.
 
 Because templates emit code rather than run it, the safety net is the **E2E test**
 (below), which generates an app from the templates, boots it, and exercises the
 HTTP API.
+
+## Where the runtime pieces live
+
+`@nest-extended/core` owns everything shared across ORMs:
+
+- `lib/nest-service-base.ts` — the public `find`/`get`/`create`/`patch`/`remove` methods and
+  the event dispatcher. Each ORM's `NestService` extends it and supplies only the raw
+  `_find`/`_get`/… implementations, so the dispatch logic exists once rather than three times.
+- `lib/nest-service-events.ts`, `lib/service-events.decorator.ts`, `lib/service-events.registry.ts`,
+  `lib/event-bus.ts` — the events class, `@ServiceEvents()`, the `DiscoveryService`-based
+  wiring, and the optional `@nestjs/event-emitter` bridge.
+- `interceptors/use-hooks.interceptor.ts` — runs `@UseBefore` / `@UseAfter`.
+
+`@nest-extended/decorators` holds the decorators themselves (including the metadata keys the
+interceptor reads), which is why **core depends on decorators** and not the other way round.
+
+See [events.md](events.md) for the user-facing contract.
 
 ## Build
 

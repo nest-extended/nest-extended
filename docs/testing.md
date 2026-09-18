@@ -39,17 +39,22 @@ For each case, in order:
 
 1. Generate an app with auth:
    `nest-cli g app <db>-<orm>-app --db <DB> --orm <ORM> --validator zod --pm npm --auth`
-2. Generate a CRUD resource:
-   `nest-cli g service product --db <DB> --orm <ORM> --validator zod`
+2. Generate a CRUD resource **with events**:
+   `nest-cli g service product --db <DB> --orm <ORM> --validator zod --events --skip-broadcast`,
+   then instrument the generated events class and controller (see
+   [The service-event checks](#the-service-event-checks-1216))
 3. **Prepare the schema:**
    - Prisma: `npx prisma generate` then `npx prisma db push`
+     (Prisma 7.10+ blocks `db push` when an AI agent invokes it and requires explicit human
+     consent — see [`../scripts/e2e/README.md`](../scripts/e2e/README.md) if you are running
+     the suite that way. Generated apps pin Prisma to `^7`; Prisma 8 is a different CLI.)
    - TypeORM: `npm run db:sync` (the generated manual schema-sync script; `DB_SYNCHRONIZE` defaults to `false`)
    - Mongoose: nothing
    (Prisma/TypeORM prep is retried up to 5 times — a freshly started DB can accept TCP before it accepts queries.)
 4. Boot the server (`npm run start` on a dedicated port) and wait until it responds (up to 90s).
 5. Run the HTTP assertion suite, then kill the server.
 
-### The HTTP checks (11)
+### The HTTP checks (16)
 
 Run against each booted app by `runApiSuite`:
 
@@ -66,6 +71,38 @@ Run against each booted app by `runApiSuite`:
 | 9 | `DELETE /product/:id` | 2xx (soft delete) |
 | 10 | `GET /product/:id` | 404 / null — the soft-deleted record is hidden |
 | 11 | `GET /users` | 200, list includes the registered user |
+| 12 | `POST /product` | 201 even though the instrumented `onCreate` throws |
+| 13 | `POST /product` (probe name) | `beforeCreate` reshaped the payload before it was written |
+| 14 | `POST /product` (probe name) | `@UseBefore` reshaped the request body |
+| 15 | `.events.log` | every service hook fired, and the registry back-assigned `ctx.service` |
+| 16 | `.events.log` | `@UseBefore` and both `@UseAfter` forms ran |
+
+#### The service-event checks (12–16)
+
+Checks 12–16 exist because service events are almost entirely a **wiring** feature:
+`@ServiceEvents()` discovery, the `ServiceEventsRegistry`, the module providers, and the
+controller calling `create()` rather than `_create()`. None of that can be verified
+without a real Nest app.
+
+The harness replaces the generated `product.events.ts` with an instrumented version that
+appends each hook it receives to `<appDir>/.events.log`, reshapes a probe payload from
+`beforeCreate`, and deliberately throws from `onCreate`. It also adds `@UseBefore` /
+`@UseAfter` to the controller's create handler and registers the handler class as a
+provider. If a check here fails, read `.events.log` — it lists the hooks that did fire.
+
+For the dispatcher contract itself — `before*` inline vs `on*` detached, `whenSettled()`,
+`emit()`, `events: false` — there is a separate database-free test that runs in about a
+second:
+
+```bash
+yarn test:events
+```
+
+Source: [`../scripts/e2e/test-service-events.ts`](../scripts/e2e/test-service-events.ts).
+It builds `@nest-extended/core` if needed and exercises the dispatcher against a fake
+in-memory service. Run it as the fast inner loop when changing `NestServiceBase`; run the
+generated-app suite when changing templates or wiring. See [events.md](events.md) for the
+behaviour it locks in.
 
 The harness is **id-shape agnostic** (`_id` for Mongo, `id` for Prisma/TypeORM) and
 **list-shape agnostic** (accepts a bare array or a `{ data: [...] }` pagination

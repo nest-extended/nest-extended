@@ -17,6 +17,7 @@ source of truth — this folder links to them rather than repeating them.
 | Understand the app that `nest-cli g app` produces (structure, HTTP API, auth) | [generated-app.md](generated-app.md) |
 | Write queries over HTTP (`$limit`, `$sort`, operators, pagination) | [querying.md](querying.md) |
 | Understand or configure soft delete and audit fields | [soft-delete-and-auditing.md](soft-delete-and-auditing.md) |
+| Run logic around CRUD operations (service events, `@UseBefore` / `@UseAfter`) | [events.md](events.md) |
 | Run or extend the end-to-end test suite | [testing.md](testing.md) |
 | Build, release, or contribute to the monorepo | [architecture.md](architecture.md) |
 
@@ -27,11 +28,11 @@ All packages are published under the `@nest-extended/*` scope (currently
 
 | Package | npm | What it provides | Reference |
 |---|---|---|---|
-| Core | `@nest-extended/core` | `NestController`, `NestExtendedModule`, `NullResponseInterceptor`, CLS helper, shared types | [packages/core/README.md](../packages/core/README.md) |
+| Core | `@nest-extended/core` | `NestController`, `NestExtendedModule`, `NestServiceEvents`, `@ServiceEvents`, `NullResponseInterceptor`, CLS helper, shared types | [packages/core/README.md](../packages/core/README.md) |
 | Mongoose | `@nest-extended/mongoose` | `NestService<M, D>` + Mongoose query utils + exception filters | [packages/mongoose/README.md](../packages/mongoose/README.md) |
 | Prisma | `@nest-extended/prisma` | `NestService<T>` for Prisma (PostgreSQL/MySQL/SQLite) + exception filters | [packages/prisma/README.md](../packages/prisma/README.md) |
 | TypeORM | `@nest-extended/typeorm` | `NestService<T>` for TypeORM (PostgreSQL/MySQL/SQLite) + exception filters | [packages/typeorm/README.md](../packages/typeorm/README.md) |
-| Decorators | `@nest-extended/decorators` | `@User`, `@Public`, `@ModifyBody`, `setCreatedBy` | [packages/decorators/README.md](../packages/decorators/README.md) |
+| Decorators | `@nest-extended/decorators` | `@User`, `@Public`, `@ModifyBody`, `setCreatedBy`, `@UseBefore`, `@UseAfter` | [packages/decorators/README.md](../packages/decorators/README.md) |
 | CLI | `@nest-extended/cli` (binary `nest-cli`) | App / auth / resource scaffolding | [packages/cli/README.md](../packages/cli/README.md) |
 
 ## How the pieces fit together
@@ -40,7 +41,7 @@ All packages are published under the `@nest-extended/*` scope (currently
 @nest-extended/decorators        @nest-extended/cli  (scaffolder — emits code
         │ (used by core)                              that imports the others)
         ▼
-@nest-extended/core   ◄── NestExtendedModule, NestController, soft-delete types
+@nest-extended/core   ◄── NestExtendedModule, NestController, service events, soft-delete types
         │
         ├──────────────┬──────────────┬──────────────┐
         ▼              ▼              ▼

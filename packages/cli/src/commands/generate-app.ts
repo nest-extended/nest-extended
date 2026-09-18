@@ -7,6 +7,7 @@ import { generateAuthServices } from '../lib/generate-auth-services';
 import { generatePrismaAuthServices } from '../lib/generate-prisma-auth-services';
 import { generateTypeOrmAuthServices } from '../lib/generate-typeorm-auth-services';
 import { getPrismaServiceFile, getPrismaModuleFile, getPrismaAdapterPackage } from '../templates/prisma-setup.template';
+import { prismaPackage } from '../lib/prisma-packages';
 import { getDataSourceFile, getDatabaseModuleFile, getTypeOrmDriverPackage } from '../templates/typeorm-setup.template';
 import { configurePrismaGenerator, ignoreGeneratedPrismaClient } from '../lib/configure-prisma-generator';
 import { resolveDatabaseAndOrm } from '../lib/resolve-orm';
@@ -117,8 +118,8 @@ export const generateAppAction = async (appName: string, options: AppOptions = {
 
         if (orm === 'prisma') {
             baseDeps.push(
-                '@prisma/client',
-                getPrismaAdapterPackage(database),
+                prismaPackage('@prisma/client').spec,
+                prismaPackage(getPrismaAdapterPackage(database)).spec,
                 nestExtendedDep('prisma', nestExtendedVersion),
             );
         } else if (orm === 'typeorm') {
@@ -167,7 +168,7 @@ export const generateAppAction = async (appName: string, options: AppOptions = {
     // 3. Install Dev dependencies
     const devDeps: string[] = ['@types/qs'];
     if (generateAuth) devDeps.push('@types/bcrypt');
-    if (orm === 'prisma') devDeps.push('prisma');
+    if (orm === 'prisma') devDeps.push(prismaPackage('prisma').spec);
     if (orm === 'typeorm') devDeps.push('ts-node');
 
     if (devDeps.length > 0) {

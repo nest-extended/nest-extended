@@ -18,19 +18,19 @@ export class ${Name}Controller {
 
   @Get()
   async find(@Query() query: Record<string, any>) {
-    return await this.${name}Service._find(query);
+    return await this.${name}Service.find(query);
   }
 
   @Get('/:id')
   async get(@Query() query: Record<string, any>, @Param('id') id: string) {
-    return await this.${name}Service._get(id, query);
+    return await this.${name}Service.get(id, query);
   }
 
   @Post()
   async create(
     @ModifyBody(setCreatedBy()) create${Name}Dto: ${Name}
   ) {
-    return await this.${name}Service._create(create${Name}Dto);
+    return await this.${name}Service.create(create${Name}Dto);
   }
 
   @Patch('/:id')
@@ -39,12 +39,12 @@ export class ${Name}Controller {
     @ModifyBody(setCreatedBy('updatedBy')) patch${Name}Dto: Partial<${Name}>,
     @Param('id') id: string,
   ) {
-    return await this.${name}Service._patch(id, patch${Name}Dto, query);
+    return await this.${name}Service.patch(id, patch${Name}Dto, query);
   }
 
   @Delete('/:id')
   async delete(@Param('id') id: string, @Query() query: Record<string, any>, @User() user: Record<string, unknown>) {
-    return await this.${name}Service._remove(id, query, user);
+    return await this.${name}Service.remove(id, query, user);
   }
 }
 `;

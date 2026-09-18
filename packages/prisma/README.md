@@ -2,13 +2,19 @@
 
 This package provides powerful Prisma integrations for the **NestExtended** ecosystem, offering a robust service layer with built-in pagination, filtering, soft delete capabilities, exception filters, and query utilities. Supports **PostgreSQL**, **MySQL**, and **SQLite**.
 
+> **Requires Prisma 7** (`prisma@^7`, `@prisma/client@^7`, and a `^7` driver adapter). Prisma 8
+> ("Prisma Next") is a different product with a different CLI and client layout, and the
+> `prisma` package currently publishes an 8.0.0 release candidate on the `latest` npm tag —
+> so pin your Prisma dependencies to `^7`. `nest-cli g app` / `g service` do this for you.
+
 ## Key Features
 
 ### NestService
 
-A generic service class (`NestService<T>`) that provides:
+A generic service class (`NestService<T, E>`) that provides:
 
 - **CRUD Operations**: `_find`, `_get`, `_create`, `_patch`, `_remove`
+- **Event-Firing Counterparts**: `find`, `get`, `create`, `patch`, `remove` — identical behaviour, but they dispatch lifecycle hooks to a `{name}.events.ts` class (see [Service Events](#service-events))
 - **FeathersJS-Style Querying**: Support for `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$like`, `$notLike`, `$iLike`, `$notILike`, `$or`, `$and`
 - **Pagination**: Built-in pagination logic using `$skip` and `$limit` with configurable defaults (limit: 20, skip: 0)
 - **Soft Delete**: Configurable soft delete support — marks records as deleted instead of removing, with user tracking via CLS context
@@ -223,3 +229,49 @@ export class PrismaModule {}
 | `handlePrismaError` | Function | Prisma error code translator |
 | `PrismaFilters` | Interface | Filter type definition |
 | `PrismaFilterOptions` | Interface | Options type definition |
+
+## Service Events
+
+Each service exposes two versions of every operation. `_find` / `_get` / `_create` /
+`_patch` / `_remove` do the work; `find` / `get` / `create` / `patch` / `remove` do exactly
+the same **and** dispatch lifecycle events to a companion events class. Call the underscore
+ones when one service calls another, the plain ones from controllers.
+
+```typescript
+import type { CatsEvents } from './cats.events';   // type-only: avoids a runtime cycle
+
+@Injectable()
+export class CatsService extends NestService<any, CatsEvents> {
+  constructor(private readonly prisma: PrismaService) {
+    super(prisma.cat, { events: true });   // default; { events: false } opts out
+  }
+}
+```
+
+```typescript
+import { EventContext, NestServiceEvents, ServiceEvents } from '@nest-extended/core';
+import { CatsService } from './cats.service';
+
+@Injectable()
+@ServiceEvents(CatsService)
+export class CatsEvents extends NestServiceEvents<CatsService, any> {
+  // Inline and awaited — the returned value replaces the input.
+  beforeCreate(data: any, ctx: EventContext<CatsService>) {
+    return { ...data, slug: slugify(data.name) };
+  }
+
+  // Detached — runs after the response is sent, cannot change it, throws are logged.
+  async onCreate(cat: any, ctx: EventContext<CatsService>) {
+    await this.audit.record(cat, ctx.user);
+  }
+}
+```
+
+Both classes go in the module's `providers`, and the app must import
+`NestExtendedModule.forRoot()` — that is what wires them. Hooks available:
+`beforeFind`/`onFind`, `beforeGet`/`onGet`, `beforeCreate`/`onCreate`,
+`beforePatch`/`onPatch`, `beforeRemove`/`onRemove`, `onError`.
+
+`nest-cli g service` generates the events file by default. See
+[the events guide](https://github.com/nest-extended/nest-extended/blob/main/docs/events.md)
+for custom events via `emit()`, global broadcasting, and the full contract.

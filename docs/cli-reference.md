@@ -24,6 +24,7 @@ npm install -D @nest-extended/cli      # per-project dev dependency
 | `nest-cli generate service <name>` | `g service` | `<name>` (required) | Generate a CRUD resource bundle and register it |
 | `nest-cli generate auth` | `g auth` | — | Add Auth + Users modules to an existing app |
 | `nest-cli migration run` | `m run` | — | Run version-upgrade codemods on `src/**/*.ts` |
+| `nest-cli migration events` | `m events` | — | Switch controllers to the event-firing service methods |
 | `nest-cli version` | `v` | — | Print the CLI version |
 | `nest-cli help` | — | — | Print a formatted help screen |
 
@@ -72,11 +73,19 @@ will be asked for each.
 2. **Installs runtime dependencies** into the new app:
    - Always: `@nestjs/config`, `nestjs-cls`, `qs`, `@nest-extended/core@<cliVersion>`, `@nest-extended/decorators@<cliVersion>`.
    - Mongoose: `@nestjs/mongoose`, `mongoose`, `@nest-extended/mongoose@<cliVersion>`.
-   - Prisma (PostgreSQL/MySQL/SQLite): `@prisma/client`, a database-specific driver adapter (`@prisma/adapter-pg`, `@prisma/adapter-mariadb`, or `@prisma/adapter-better-sqlite3`), and `@nest-extended/prisma@<cliVersion>`.
+   - Prisma (PostgreSQL/MySQL/SQLite): `@prisma/client@^7`, a database-specific driver adapter (`@prisma/adapter-pg`, `@prisma/adapter-mariadb`, or `@prisma/adapter-better-sqlite3`) also at `^7`, and `@nest-extended/prisma@<cliVersion>`.
    - TypeORM (PostgreSQL/MySQL/SQLite): `@nestjs/typeorm`, `typeorm`, `dotenv`, a database driver (`pg`, `mysql2`, or `better-sqlite3`), and `@nest-extended/typeorm@<cliVersion>`.
    - Validator: `zod`, **or** `class-validator` + `class-transformer`.
    - With `--auth`: `@nestjs/jwt`, `bcrypt`.
-3. **Installs dev dependencies**: `@types/qs`, plus `@types/bcrypt` (auth), `prisma` (Prisma), and `ts-node` (TypeORM, for the schema-sync/migration scripts).
+3. **Installs dev dependencies**: `@types/qs`, plus `@types/bcrypt` (auth), `prisma@^7` (Prisma), and `ts-node` (TypeORM, for the schema-sync/migration scripts).
+
+   > **Prisma is pinned to v7.** Prisma 8 ("Prisma Next") is a different product: `prisma init
+   > --datasource-provider`, `prisma generate` and `prisma db push` no longer exist, the ORM
+   > commands moved under `prisma orm`, and the client layout changed. Everything the generator
+   > emits — the `prisma-client` generator block, the `../generated/prisma/client` import in
+   > `PrismaService`, the driver adapters — targets Prisma 7. The `prisma` CLI also currently
+   > ships an 8.0.0 release candidate on the `latest` npm tag, so leaving it unpinned installs
+   > a pre-release alongside a 7.x `@prisma/client`.
 4. **Prisma only:** runs `npx prisma init --datasource-provider <postgresql|mysql|sqlite>`, normalizes the generator block for NestJS (`provider = "prisma-client"`, `output = "../src/generated/prisma"`, `moduleFormat = "cjs"`), adds `/src/generated` to `.gitignore`, and creates `src/prisma/prisma.service.ts` + `src/prisma/prisma.module.ts`.
    **TypeORM only:** creates `src/database/data-source.ts` (a shared `DataSource`) and `src/database/database.module.ts` (`TypeOrmModule.forRoot` with `autoLoadEntities: true` and `synchronize`/`migrationsRun` driven by `DB_SYNCHRONIZE`), adds `db:sync` + `migration:*` scripts to `package.json`, and (SQLite) ignores `dev.db`.
 5. **Rewrites `src/app.module.ts`** to import and configure `ConfigModule`, `ClsModule`, `NestExtendedModule.forRoot({ softDelete, filters: [] })`, the database module (`MongooseModule.forRoot(...)`, `PrismaModule`, or `DatabaseModule`), and registers the matching `GlobalExceptionFilter` (`APP_FILTER`) and `NullResponseInterceptor` (`APP_INTERCEPTOR`).
@@ -117,9 +126,15 @@ resource and registers its module in `src/app.module.ts`.
 | `--database <type>` | `--db`, `-d` | `PostgreSQL` \| `MySQL` \| `SQLite` \| `MongoDB` |
 | `--orm <type>` | `-o` | `prisma` \| `typeorm` \| `mongoose` |
 | `--validator <type>` | `-v` | `zod` \| `class-validator` |
+| `--events` / `--skip-events` | — | generate `{name}.events.ts` (default: **yes**) |
+| `--broadcast` / `--skip-broadcast` | — | also broadcast events via `@nestjs/event-emitter` (default: **no**) |
 
-Omitted flags are prompted (defaults: database `MongoDB`, ORM `Prisma` for SQL, `zod`).
-Use the **same database + ORM** as the app you are adding the resource to.
+Omitted flags are prompted (defaults: database `MongoDB`, ORM `Prisma` for SQL, `zod`,
+events **yes**, broadcast **no**). Use the **same database + ORM** as the app you are
+adding the resource to.
+
+> `--broadcast` only applies when events are generated, and implies `--events`-style
+> behaviour: it is not asked if you answered no to the events prompt.
 
 ### Name transformation
 
@@ -138,7 +153,7 @@ Note the controller route uses the **raw** argument you typed (`user-profile`,
 ### What it does
 
 1. **Ensures validator packages** are installed (`zod`, or `class-validator` + `class-transformer`) — installs missing ones using the detected package manager (`yarn.lock`→yarn, `pnpm-lock.yaml`→pnpm, else npm).
-2. **Prisma only:** ensures `@prisma/client`, the driver adapter, `@nest-extended/prisma`, and dev `prisma` are installed; runs `prisma init` if there is no `prisma/schema.prisma`; creates `src/prisma/prisma.service.ts` + `prisma.module.ts` if missing.
+2. **Prisma only:** ensures `@prisma/client@^7`, the driver adapter (also `^7`), `@nest-extended/prisma`, and dev `prisma@^7` are installed (see the pin note under [`g app`](#nest-cli-g-app-name)); runs `prisma init` if there is no `prisma/schema.prisma`; creates `src/prisma/prisma.service.ts` + `prisma.module.ts` if missing.
    **TypeORM only:** ensures `@nestjs/typeorm`, `typeorm`, `dotenv`, the driver, `@nest-extended/typeorm`, and dev `ts-node` are installed; creates `src/database/data-source.ts` + `database.module.ts` if missing.
 3. **Detects whether auth exists** (`src/services/auth/` present). If so, generated schemas/models/entities include `createdBy` / `updatedBy` / `deletedBy` audit fields.
 4. **Generates files:**
@@ -148,6 +163,7 @@ Note the controller route uses the **raw** argument you typed (`user-profile`,
    - `src/services/<path>/<name>.module.ts` — `MongooseModule.forFeature(...)`
    - `src/services/<path>/<name>.service.ts` — `extends NestService`
    - `src/services/<path>/<name>.controller.ts` — CRUD controller
+   - `src/services/<path>/<name>.events.ts` — lifecycle hooks (unless `--skip-events`); see [events.md](events.md)
    - `src/services/<path>/dto/<name>.dto.ts` — Zod schemas **or** class-validator DTOs
    - `src/services/<path>/<name>.service.spec.ts` and `<name>.controller.spec.ts`
 
@@ -160,7 +176,13 @@ Note the controller route uses the **raw** argument you typed (`user-profile`,
    `TypeOrmModule.forFeature([<Name>])` and the service injects the repository via
    `@InjectRepository`.
 5. **Registers the module** in `src/app.module.ts` (import + `imports[]` entry; skipped if already present).
-6. **Runs `<pm> run lint`**.
+6. **With `--broadcast`:** installs `@nestjs/event-emitter` and adds `EventEmitterModule.forRoot()` to `src/app.module.ts`.
+7. **Runs `<pm> run lint`**.
+
+> Generated services get an events class registered in the module's `providers`, and the
+> controller calls the **event-firing** methods (`find`, `create`, …) rather than the
+> underscore ones. If `NestExtendedModule.forRoot()` is missing from `src/app.module.ts`
+> the CLI warns, because nothing will wire the events class.
 
 > **After generating a Prisma resource,** apply the new model to your database:
 > `npx prisma generate && npx prisma db push` (or create a migration).
@@ -177,6 +199,8 @@ nest-cli g service product --db MongoDB --orm mongoose -v zod
 nest-cli g service order-item --db PostgreSQL --orm typeorm -v class-validator
 nest-cli g service order-item --db PostgreSQL --orm prisma -v zod
 nest-cli g service qna/category --db MongoDB --orm mongoose  # nested under src/services/qna/
+nest-cli g service product --db MongoDB --orm mongoose -v zod --skip-events
+nest-cli g service product --db MongoDB --orm mongoose -v zod --events --broadcast
 ```
 
 ---
@@ -224,6 +248,40 @@ nest-cli m run
 
 It prints each updated file and a final count. Files with no matching imports are
 left untouched.
+
+---
+
+## `nest-cli migration events` (`m events`)
+
+Switches controllers from the event-free `_find` / `_get` / `_create` / `_patch` /
+`_remove` to their event-firing counterparts, so existing projects start firing service
+events. See [events.md](events.md) for what changes.
+
+By default it only touches `src/**/*.controller.ts` — internal service-to-service calls
+should keep using the underscore methods so they stay event-free.
+
+| Flag | Purpose |
+|---|---|
+| `--dry-run` | Print the changes without writing anything |
+| `-y, --yes` | Apply without the confirmation prompt |
+| `--path <glob>` | Migrate a different set of files (default `src/**/*.controller.ts`) |
+
+```bash
+cd my-app
+nest-cli m events --dry-run
+```
+
+```
+  src/services/company/company.controller.ts
+    _find -> find (line 24)
+    _get -> get (line 31)
+    ...
+
+2 file(s), 10 replacement(s).
+```
+
+It then asks before writing. Because `on*` hooks are detached and cannot alter a
+response, this migration does not change any endpoint's output.
 
 ---
 

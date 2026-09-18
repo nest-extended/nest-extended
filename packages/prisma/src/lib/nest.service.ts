@@ -3,6 +3,7 @@ import { BadRequestException } from '@nestjs/common';
 import { assignFilters, FILTERS, rawQuery } from '../common/query.utils';
 import { options } from '@nest-extended/core';
 import { NestServiceOptions } from '@nest-extended/core';
+import { NestServiceBase, NestServiceEvents } from '@nest-extended/core';
 import { applyFilters } from '../common/apply-filters';
 
 import { SoftDeleteConfig } from '@nest-extended/core';
@@ -44,9 +45,11 @@ const defaultSoftDeleteConfig: SoftDeleteConfig = {
  * - Soft delete: configurable via SoftDeleteConfig
  * - Bulk operations: multi mode for createMany/updateMany
  */
-export class NestService<T> {
+export class NestService<
+    T,
+    E extends NestServiceEvents<any, T> = NestServiceEvents<any, T>,
+> extends NestServiceBase<T, E> {
     private model: any; // Prisma delegate (e.g., prisma.user)
-    private options: NestServiceOptions;
     private softDeleteConfig: SoftDeleteConfig;
 
     constructor(
@@ -54,11 +57,14 @@ export class NestService<T> {
         serviceOptions: NestServiceOptions = {},
         softDeleteConfig?: SoftDeleteConfig,
     ) {
+        super();
         this.model = model;
         this.options = {
             multi: false,
             softDelete: true,
             pagination: true,
+            events: true,
+            broadcast: false,
             ...serviceOptions,
         };
         this.softDeleteConfig = softDeleteConfig || defaultSoftDeleteConfig;

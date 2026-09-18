@@ -4,6 +4,7 @@ import { BadRequestException } from '@nestjs/common';
 import { assignFilters, FILTERS, rawQuery } from '../common/query.utils';
 import { options } from '@nest-extended/core';
 import { NestServiceOptions } from '@nest-extended/core';
+import { NestServiceBase, NestServiceEvents } from '@nest-extended/core';
 import { nestify } from '../common/nestify';
 
 import { SoftDeleteConfig } from '@nest-extended/core';
@@ -22,9 +23,12 @@ const defaultSoftDeleteConfig: SoftDeleteConfig = {
     }),
 };
 
-export class NestService<M, D> {
+export class NestService<
+    M,
+    D,
+    E extends NestServiceEvents<any, D> = NestServiceEvents<any, D>,
+> extends NestServiceBase<D, E> {
     private model: Model<M>;
-    private options: NestServiceOptions;
     private softDeleteConfig: SoftDeleteConfig;
 
     constructor(
@@ -32,11 +36,14 @@ export class NestService<M, D> {
         serviceOptions: NestServiceOptions = {},
         softDeleteConfig?: SoftDeleteConfig,
     ) {
+        super();
         this.model = model;
         this.options = {
             multi: false,
             softDelete: true,
             pagination: true,
+            events: true,
+            broadcast: false,
             ...serviceOptions,
         };
         this.softDeleteConfig = softDeleteConfig || defaultSoftDeleteConfig;

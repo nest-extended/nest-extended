@@ -86,12 +86,13 @@ nest-cli generate auth
 Generates a complete resource bundle including:
 - **Module**: Registers the controller and service.
 - **Service**: Extends `NestService` from `@nest-extended/mongoose`, `@nest-extended/prisma`, or `@nest-extended/typeorm` depending on the ORM selection.
-- **Controller**: Standard CRUD controller.
+- **Controller**: Standard CRUD controller, calling the event-firing service methods.
+- **Events**: A `{name}.events.ts` lifecycle-hooks class, registered in the module's providers — see [Service Events](#service-events). Skip with `--skip-events`.
 - **Schema/Model/Entity**: Mongoose schema, Prisma model (appended to `schema.prisma`), or TypeORM entity, all with soft delete fields.
 - **DTO**: Data Transfer Object with validation (Zod or class-validator, user selects during generation).
 - **Specs**: Unit tests for service and controller.
 
-The CLI prompts for database, ORM, and validation library, and auto-installs missing packages.
+The CLI prompts for database, ORM, validation library, and whether to generate events, and auto-installs missing packages.
 
 Generated schemas use `select: false` on soft-delete/audit fields (`deleted`, `deletedAt`, `deletedBy`, `updatedBy`) to exclude them from queries by default.
 
@@ -115,10 +116,22 @@ This will create:
 - `src/services/userProfile/userProfile.module.ts`
 - `src/services/userProfile/userProfile.service.ts`
 - `src/services/userProfile/userProfile.controller.ts`
+- `src/services/userProfile/userProfile.events.ts`
 - `src/services/userProfile/dto/userProfile.dto.ts`
 - `src/schemas/userProfile.schema.ts`
 - `src/services/userProfile/userProfile.service.spec.ts`
 - `src/services/userProfile/userProfile.controller.spec.ts`
+
+##### Migration (`m run`, `m events`)
+
+```bash
+nest-cli m run          # move relocated decorator imports to @nest-extended/decorators
+nest-cli m events       # switch controllers to the event-firing service methods
+```
+
+`m events` rewrites `_find`/`_get`/`_create`/`_patch`/`_remove` to `find`/`get`/`create`/
+`patch`/`remove` in `src/**/*.controller.ts`, printing every change and asking before it
+writes. Use `--dry-run` to preview.
 
 ---
 
@@ -134,6 +147,7 @@ This package provides the core building blocks for NestJS applications built wit
     - `@Public()`
     - `@ModifyBody()`
 - **Query Parser**: Auto-configures `qs` as the Express query parser (depth: 20, arrayLimit: 100) via `NestExtendedModule.forRoot()`. Configurable or disable with `queryParser: false`.
+- **Service Events**: A per-service hooks class (`NestServiceEvents` + `@ServiceEvents()`) wired at boot by `NestExtendedModule.forRoot()`. See [Service Events](#service-events).
 
 #### Usage
 
@@ -170,7 +184,7 @@ This package provides powerful Mongoose integrations for the **NestExtended** ec
 #### Key Features
 
 - **NestService**: A generic service class (`NestService<DTO, Document>`) that provides:
-    - **CRUD Operations**: `_find`, `_get`, `_create`, `_patch`, `_remove`.
+    - **CRUD Operations**: `_find`, `_get`, `_create`, `_patch`, `_remove` — plus `find`, `get`, `create`, `patch`, `remove`, which are identical but fire [service events](#service-events).
     - **Advanced Querying**: Support for `$regex`, `$or`, and standard MongoDB operators.
     - **Pagination**: Built-in pagination logic using `skip` and `limit`.
     - **Soft Delete**: Configurable soft delete support (requires `@nest-extended/core` integration).
@@ -220,7 +234,7 @@ This package provides powerful Prisma integrations for the **NestExtended** ecos
 #### Key Features
 
 - **NestService**: A generic service class (`NestService<T>`) that provides:
-    - **CRUD Operations**: `_find`, `_get`, `_create`, `_patch`, `_remove`.
+    - **CRUD Operations**: `_find`, `_get`, `_create`, `_patch`, `_remove` — plus `find`, `get`, `create`, `patch`, `remove`, which are identical but fire [service events](#service-events).
     - **FeathersJS-Style Querying**: `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$like`, `$notLike`, `$iLike`, `$notILike`, `$or`, `$and`.
     - **Pagination**: Built-in pagination using `$skip` and `$limit`.
     - **Soft Delete**: Configurable soft delete support.
@@ -264,7 +278,7 @@ This package provides powerful TypeORM integrations for the **NestExtended** eco
 #### Key Features
 
 - **NestService**: A generic service class (`NestService<T>`) that provides:
-    - **CRUD Operations**: `_find`, `_get`, `_create`, `_patch`, `_remove`.
+    - **CRUD Operations**: `_find`, `_get`, `_create`, `_patch`, `_remove` — plus `find`, `get`, `create`, `patch`, `remove`, which are identical but fire [service events](#service-events).
     - **FeathersJS-Style Querying**: `$eq`, `$ne`, `$gt`, `$gte`, `$lt`, `$lte`, `$in`, `$nin`, `$like`, `$notLike`, `$iLike`, `$notILike`, `$or`, `$and` — translated to TypeORM `FindOperator`s.
     - **Pagination**: Built-in pagination using `$skip` and `$limit`.
     - **Soft Delete**: Configurable soft delete support.
@@ -313,6 +327,7 @@ This package provides useful decorators for NestJS applications.
 - **`@User()`**: Retrieves the current user from the request (integrates with `nestjs-cls` or request object).
 - **`@Public()`**: Marks a route as public (useful for authentication guards).
 - **`@ModifyBody()`**: Allows modification of the request body before validation (e.g., setting `createdBy`).
+- **`@UseBefore()` / `@UseAfter()`**: Run an inline function or an injectable handler class around a route handler (or a whole controller). `@UseBefore` is awaited and can reshape the request; `@UseAfter` is detached and cannot alter the response.
 
 #### Installation
 
@@ -339,6 +354,69 @@ export class CatsController {
   getProfile(@User() user: any) { ... }
 }
 ```
+
+---
+
+## Service Events
+
+Every service has two versions of each operation. The underscore ones — `_find`, `_get`,
+`_create`, `_patch`, `_remove` — do the work and fire nothing. The plain ones — `find`,
+`get`, `create`, `patch`, `remove` — take the same arguments, return the same values, and
+additionally dispatch lifecycle hooks to a companion `{name}.events.ts` class.
+
+Use the underscore methods when one service calls another; use the plain ones from
+controllers. `nest-cli g service` generates the events file and wires it up by default.
+
+```typescript
+// company.events.ts
+@Injectable()
+@ServiceEvents(CompanyService)
+export class CompanyEvents extends NestServiceEvents<CompanyService, CompanyDocument> {
+  constructor(
+    @InjectModel(CompanyProfile.name)
+    private readonly profileModel: Model<CompanyProfileDocument>,   // inject anything
+  ) {
+    super();
+  }
+
+  // Inline and awaited — what you return replaces the input.
+  beforeCreate(data: any, ctx: EventContext<CompanyService>) {
+    return { ...data, slug: slugify(data.name) };
+  }
+
+  // Detached — the response has already been sent.
+  async onCreate(company: CompanyDocument, ctx: EventContext<CompanyService>) {
+    await this.profileModel.create({ company: company._id, createdBy: ctx.user?._id });
+  }
+}
+```
+
+Hooks: `beforeFind`/`onFind`, `beforeGet`/`onGet`, `beforeCreate`/`onCreate`,
+`beforePatch`/`onPatch`, `beforeRemove`/`onRemove`, and `onError`. All optional, all
+receive `(payload, ctx)`.
+
+**`on*` hooks never block or alter the response.** They run after it has been sent, their
+return values are ignored, and a throw is logged rather than surfaced to the client — so a
+failing hook can't break an endpoint, but its work is also not transactional with the
+operation. Only `before*` hooks can change input or cancel an operation.
+
+Custom events work the same way — add a method to the events class and `emit` it:
+
+```typescript
+async approve(id: string) {
+  const doc = await this._patch(id, { status: 'approved' });
+  this.emit('approve', doc);      // type-checked against CompanyEvents
+  return doc;
+}
+```
+
+For request- and response-aware logic, use `@UseBefore` / `@UseAfter` from
+`@nest-extended/decorators` instead. With `@nestjs/event-emitter` installed, a service can
+also `broadcast` its events so other modules can `@OnEvent(...)`.
+
+Existing projects switch their controllers over with `nest-cli m events`.
+
+Full details: [docs/events.md](docs/events.md).
 
 ---
 

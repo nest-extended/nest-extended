@@ -224,9 +224,9 @@ To get a **bare array** instead, disable pagination:
 - Per service: construct it with `super(model, { pagination: false })`.
 - Per call (in code): `service._find(query, { pagination: false })` → returns `T[]`.
 
-The controllers `nest-cli` generates always call `_find(query)` (no per-call
-override), so over HTTP the envelope is controlled by the service's `pagination`
-option.
+The controllers `nest-cli` generates always call `find(query)` — the event-firing
+counterpart of `_find`, see [events.md](events.md) — with no per-call override, so over
+HTTP the envelope is controlled by the service's `pagination` option.
 
 ## Invalid / unknown parameters
 

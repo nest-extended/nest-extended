@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 import { glob } from 'glob';
+import { migrationEventsAction } from './migration-events';
 
 export const migrationCommand = new Command('migration')
     .alias('m')
@@ -59,3 +60,11 @@ migrationCommand
 
         console.log(`Migration completed. Updated ${updateCount} files.`);
     });
+
+migrationCommand
+    .command('events')
+    .description('Switch controllers from _find/_get/... to the event-firing find/get/...')
+    .option('--dry-run', 'Show what would change without writing anything')
+    .option('-y, --yes', 'Apply without asking for confirmation')
+    .option('--path <glob>', 'Glob of files to migrate (default: src/**/*.controller.ts)')
+    .action((options) => migrationEventsAction(options));

@@ -4,7 +4,7 @@ import * as fs from 'fs-extra';
 import * as inquirer from 'inquirer';
 import { spawn } from 'child_process';
 import { createFileWithContent } from '../lib/create-file';
-import { updateAppModule } from '../lib/update-app-module';
+import { ensureEventEmitterModule, updateAppModule } from '../lib/update-app-module';
 import { getModule } from '../templates/module.template';
 import { getService } from '../templates/service.template';
 import { getController } from '../templates/controller.template';
@@ -29,6 +29,8 @@ import { getTypeOrmDto } from '../templates/typeorm-dto.template';
 import { getTypeOrmDtoClassValidator } from '../templates/typeorm-dto-class-validator.template';
 import { getDataSourceFile, getDatabaseModuleFile, getTypeOrmDriverPackage } from '../templates/typeorm-setup.template';
 import { resolveDatabaseAndOrm, SqlProvider } from '../lib/resolve-orm';
+import { PackageSpec, prismaPackage, specName, specValue } from '../lib/prisma-packages';
+import { getEvents } from '../templates/events.template';
 
 /**
  * Detect the package manager used in the project.
@@ -49,8 +51,13 @@ const isPackageInstalled = (projectDir: string, packageName: string): boolean =>
 /**
  * Install packages if they are not already installed.
  */
-const ensurePackagesInstalled = async (projectDir: string, packages: string[]): Promise<void> => {
-    const missing = packages.filter(pkg => !isPackageInstalled(projectDir, pkg));
+const ensurePackagesInstalled = async (
+    projectDir: string,
+    packages: (string | PackageSpec)[],
+): Promise<void> => {
+    const missing = packages
+        .filter(pkg => !isPackageInstalled(projectDir, specName(pkg)))
+        .map(specValue);
     if (missing.length === 0) return;
 
     const pkgManager = detectPackageManager(projectDir);
@@ -76,8 +83,13 @@ const ensurePackagesInstalled = async (projectDir: string, packages: string[]): 
 /**
  * Install dev dependencies if not already installed.
  */
-const ensureDevPackagesInstalled = async (projectDir: string, packages: string[]): Promise<void> => {
-    const missing = packages.filter(pkg => !isPackageInstalled(projectDir, pkg));
+const ensureDevPackagesInstalled = async (
+    projectDir: string,
+    packages: (string | PackageSpec)[],
+): Promise<void> => {
+    const missing = packages
+        .filter(pkg => !isPackageInstalled(projectDir, specName(pkg)))
+        .map(specValue);
     if (missing.length === 0) return;
 
     const pkgManager = detectPackageManager(projectDir);
@@ -194,7 +206,59 @@ const appendPrismaModel = (projectDir: string, Name: string, isAuthGenerated: bo
 
 const VALIDATOR_CHOICES = ['zod', 'class-validator'];
 
-interface ServiceOptions { database?: string; db?: string; orm?: string; validator?: string; }
+/**
+ * Service events are wired by NestExtendedModule at boot. Without it in app.module.ts
+ * the generated events class is never attached, so warn rather than fail silently.
+ */
+const warnIfEventsCannotWire = (projectDir: string): void => {
+    const appModulePath = path.join(projectDir, 'src/app.module.ts');
+    if (!fs.existsSync(appModulePath)) return;
+
+    const content = fs.readFileSync(appModulePath, 'utf-8');
+    if (content.includes('NestExtendedModule.forRoot(')) return;
+
+    console.warn(
+        chalk.yellow(
+            'Warning: NestExtendedModule.forRoot() was not found in src/app.module.ts. ' +
+            'Service events will not fire until it is registered.',
+        ),
+    );
+};
+
+interface ServiceOptions {
+    database?: string;
+    db?: string;
+    orm?: string;
+    validator?: string;
+    events?: boolean;
+    skipEvents?: boolean;
+    broadcast?: boolean;
+    skipBroadcast?: boolean;
+}
+
+/**
+ * Resolves a boolean flag pair (`--x` / `--skip-x`), falling back to a confirm prompt.
+ */
+const resolveConfirm = async (
+    enable: boolean | undefined,
+    disable: boolean | undefined,
+    name: string,
+    message: string,
+    fallback: boolean,
+): Promise<boolean> => {
+    if (enable) return true;
+    if (disable) return false;
+
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    const answer = await inquirer.prompt([{
+        type: 'confirm',
+        name,
+        message,
+        default: fallback,
+    }]);
+    return answer[name];
+};
 
 export const generateServiceAction = async (rawName: string, options: ServiceOptions = {}) => {
     const parts = rawName.split('/');
@@ -234,6 +298,24 @@ export const generateServiceAction = async (rawName: string, options: ServiceOpt
         validatorType = answer.validatorType;
     }
 
+    // Resolve --events / --skip-events, then --broadcast / --skip-broadcast
+    const generateEvents = await resolveConfirm(
+        options.events,
+        options.skipEvents,
+        'generateEvents',
+        'Generate an events file for this service?',
+        true,
+    );
+    const broadcastEvents = generateEvents
+        ? await resolveConfirm(
+              options.broadcast,
+              options.skipBroadcast,
+              'broadcastEvents',
+              'Broadcast these events globally with @nestjs/event-emitter?',
+              false,
+          )
+        : false;
+
     const projectDir = process.cwd();
 
     // Ensure required validator packages are installed
@@ -245,13 +327,22 @@ export const generateServiceAction = async (rawName: string, options: ServiceOpt
 
     // Ensure database-specific packages are installed
     if (orm === 'prisma') {
-        await ensurePackagesInstalled(projectDir, ['@prisma/client', getPrismaAdapterPackage(database), '@nest-extended/prisma']);
-        await ensureDevPackagesInstalled(projectDir, ['prisma']);
+        await ensurePackagesInstalled(projectDir, [
+            prismaPackage('@prisma/client'),
+            prismaPackage(getPrismaAdapterPackage(database)),
+            '@nest-extended/prisma',
+        ]);
+        await ensureDevPackagesInstalled(projectDir, [prismaPackage('prisma')]);
         await ensurePrismaSetup(projectDir, database);
     } else if (orm === 'typeorm') {
         await ensurePackagesInstalled(projectDir, ['@nestjs/typeorm', 'typeorm', 'dotenv', getTypeOrmDriverPackage(sqlProvider as string), '@nest-extended/typeorm']);
         await ensureDevPackagesInstalled(projectDir, ['ts-node']);
         ensureTypeOrmSetup(projectDir, sqlProvider as SqlProvider);
+    }
+
+    if (broadcastEvents) {
+        await ensurePackagesInstalled(projectDir, ['@nestjs/event-emitter']);
+        await ensureEventEmitterModule();
     }
 
     console.log(`Generating service for: ${Name} (${fullPath}) using ${database} (${orm})`);
@@ -268,9 +359,12 @@ export const generateServiceAction = async (rawName: string, options: ServiceOpt
         appendPrismaModel(projectDir, Name, isAuthGenerated);
 
         // Generate service files
-        createFileWithContent(`${targetDir}/${name}.module.ts`, getPrismaModule(Name, name));
-        createFileWithContent(`${targetDir}/${name}.service.ts`, getPrismaService(Name, name));
+        createFileWithContent(`${targetDir}/${name}.module.ts`, getPrismaModule(Name, name, generateEvents));
+        createFileWithContent(`${targetDir}/${name}.service.ts`, getPrismaService(Name, name, generateEvents, broadcastEvents));
         createFileWithContent(`${targetDir}/${name}.controller.ts`, getPrismaController(Name, name, rawName));
+        if (generateEvents) {
+            createFileWithContent(`${targetDir}/${name}.events.ts`, getEvents(Name, name, 'prisma'));
+        }
         createFileWithContent(`${targetDir}/dto/${name}.dto.ts`, dtoContent);
         createFileWithContent(`${targetDir}/${name}.service.spec.ts`, getServiceSpec(Name, name));
         createFileWithContent(`${targetDir}/${name}.controller.spec.ts`, getControllerSpec(Name, name));
@@ -281,9 +375,12 @@ export const generateServiceAction = async (rawName: string, options: ServiceOpt
         const dtoContent = validatorType === 'zod' ? getTypeOrmDto(Name) : getTypeOrmDtoClassValidator(Name);
 
         createFileWithContent(`${targetDir}/entities/${name}.entity.ts`, getTypeOrmEntity(Name, name, isAuthGenerated));
-        createFileWithContent(`${targetDir}/${name}.module.ts`, getTypeOrmModule(Name, name));
-        createFileWithContent(`${targetDir}/${name}.service.ts`, getTypeOrmService(Name, name));
+        createFileWithContent(`${targetDir}/${name}.module.ts`, getTypeOrmModule(Name, name, generateEvents));
+        createFileWithContent(`${targetDir}/${name}.service.ts`, getTypeOrmService(Name, name, generateEvents, broadcastEvents));
         createFileWithContent(`${targetDir}/${name}.controller.ts`, getTypeOrmController(Name, name, rawName));
+        if (generateEvents) {
+            createFileWithContent(`${targetDir}/${name}.events.ts`, getEvents(Name, name, 'typeorm'));
+        }
         createFileWithContent(`${targetDir}/dto/${name}.dto.ts`, dtoContent);
         createFileWithContent(`${targetDir}/${name}.service.spec.ts`, getServiceSpec(Name, name));
         createFileWithContent(`${targetDir}/${name}.controller.spec.ts`, getControllerSpec(Name, name));
@@ -298,12 +395,18 @@ export const generateServiceAction = async (rawName: string, options: ServiceOpt
         const dtoContent = validatorType === 'zod' ? getDto(Name) : getDtoClassValidator(Name);
 
         createFileWithContent(`src/schemas/${fullPath}.schema.ts`, getSchema(Name, 'Users', isAuthGenerated, dirPath));
-        createFileWithContent(`${targetDir}/${name}.module.ts`, getModule(Name, name, fullPath, depth));
-        createFileWithContent(`${targetDir}/${name}.service.ts`, getService(Name, name, fullPath));
+        createFileWithContent(`${targetDir}/${name}.module.ts`, getModule(Name, name, fullPath, depth, generateEvents));
+        createFileWithContent(`${targetDir}/${name}.service.ts`, getService(Name, name, fullPath, generateEvents, broadcastEvents));
         createFileWithContent(
             `${targetDir}/${name}.controller.ts`,
             getController(Name, name, rawName, depth, fullPath),
         );
+        if (generateEvents) {
+            createFileWithContent(
+                `${targetDir}/${name}.events.ts`,
+                getEvents(Name, name, 'mongoose', depth, fullPath),
+            );
+        }
         createFileWithContent(`${targetDir}/dto/${name}.dto.ts`, dtoContent);
         createFileWithContent(
             `${targetDir}/${name}.service.spec.ts`,
@@ -316,6 +419,10 @@ export const generateServiceAction = async (rawName: string, options: ServiceOpt
     }
 
     await updateAppModule(Name, name, fullPath);
+
+    if (generateEvents) {
+        warnIfEventsCannotWire(projectDir);
+    }
 
     console.log(chalk.blue('Running lint...'));
     const pkgManager = detectPackageManager(projectDir);

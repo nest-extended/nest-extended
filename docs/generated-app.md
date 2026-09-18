@@ -222,11 +222,17 @@ raw argument — e.g. `product`, `user-profile`, `qna/category`) and exposes:
 
 | Method & path | Service call | Notes |
 |---|---|---|
-| `GET /<resource>` | `_find(query)` | List with filtering/sorting/pagination — see [querying.md](querying.md) |
-| `GET /<resource>/:id` | `_get(id, query)` | Single record; `null` result becomes `404` via the interceptor |
-| `POST /<resource>` | `_create(dto)` | Request body runs through `@ModifyBody(setCreatedBy())`, which sets `createdBy` to the authenticated user's id |
-| `PATCH /<resource>/:id` | `_patch(id, dto, query)` | Body runs through `@ModifyBody(setCreatedBy('updatedBy'))`, setting `updatedBy` |
-| `DELETE /<resource>/:id` | `_remove(id, query, user)` | Soft delete by default — see [soft-delete-and-auditing.md](soft-delete-and-auditing.md) |
+| `GET /<resource>` | `find(query)` | List with filtering/sorting/pagination — see [querying.md](querying.md) |
+| `GET /<resource>/:id` | `get(id, query)` | Single record; `null` result becomes `404` via the interceptor |
+| `POST /<resource>` | `create(dto)` | Request body runs through `@ModifyBody(setCreatedBy())`, which sets `createdBy` to the authenticated user's id |
+| `PATCH /<resource>/:id` | `patch(id, dto, query)` | Body runs through `@ModifyBody(setCreatedBy('updatedBy'))`, setting `updatedBy` |
+| `DELETE /<resource>/:id` | `remove(id, query, user)` | Soft delete by default — see [soft-delete-and-auditing.md](soft-delete-and-auditing.md) |
+
+> **Why the non-underscore names?** They are the event-firing versions of
+> `_find` / `_get` / `_create` / `_patch` / `_remove` — identical arguments and return
+> values, but they dispatch to the resource's `{name}.events.ts` class. See
+> [events.md](events.md). Projects generated before this existed can switch over with
+> `nest-cli m events`.
 
 > **These endpoints are protected** when auth is present: the generated resource
 > controller does **not** mark `find` as `@Public()`, so the global `AuthGuard`
@@ -241,7 +247,7 @@ raw argument — e.g. `product`, `user-profile`, `qna/category`) and exposes:
 the same five endpoints with two behavioral differences:
 
 - `find` is annotated `@Public()` (so listing is open even under a global auth guard).
-- `create` uses `@ModifyBody(setCreatedBy())`; `delete` passes `@User()` to `_remove`.
+- `create` uses `@ModifyBody(setCreatedBy())`; `delete` passes `@User()` to `remove`.
 
 Use the generated controller when you want list endpoints behind auth; extend
 `NestController` when you want a zero-boilerplate controller with a public list.

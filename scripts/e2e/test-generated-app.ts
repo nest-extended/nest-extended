@@ -19,7 +19,7 @@
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { createConnection } from 'node:net';
-import { existsSync, mkdirSync, rmSync, renameSync, createWriteStream } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, renameSync, createWriteStream, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as path from 'node:path';
 
@@ -368,9 +368,149 @@ function stopServer(db: DbType): void {
 }
 
 // ---------------------------------------------------------------------------
+// Service events instrumentation
+// ---------------------------------------------------------------------------
+
+/** Name POSTed to prove a `before*` hook can reshape the payload before it is written. */
+const BEFORE_PROBE = '__before_hook_probe__';
+const RESHAPED_NAME = 'reshaped-by-before-hook';
+
+/** Name POSTed to prove a `@UseBefore` handler can reshape the request body. */
+const USE_BEFORE_PROBE = '__use_before_probe__';
+const USE_BEFORE_NAME = 'reshaped-by-use-before';
+
+const eventsLogPath = (appDir: string): string => path.join(appDir, '.events.log');
+
+/**
+ * Replaces the generated `product.events.ts` with a version that records every hook it
+ * receives, reshapes a probe payload, and deliberately throws from `onCreate`.
+ *
+ * That lets the HTTP suite assert the real wiring end to end: `@ServiceEvents` + the
+ * registry + the module providers + the controller calling the non-underscore methods.
+ * The file is ORM-agnostic, so the same instrumentation works for all three adapters.
+ */
+function instrumentEvents(appDir: string): void {
+  const logPath = eventsLogPath(appDir);
+  if (existsSync(logPath)) rmSync(logPath);
+
+  const eventsFile = path.join(appDir, 'src', 'services', RESOURCE, `${RESOURCE}.events.ts`);
+  if (!existsSync(eventsFile)) {
+    throw new Error(`Expected generated events file at ${eventsFile}`);
+  }
+
+  writeFileSync(eventsFile, `import { appendFileSync } from 'node:fs';
+import { Injectable } from '@nestjs/common';
+import { NestServiceEvents, ServiceEvents } from '@nest-extended/core';
+import { ProductService } from './product.service';
+
+const LOG = ${JSON.stringify(logPath)};
+const record = (line: string): void => appendFileSync(LOG, line + '\\n');
+
+@Injectable()
+@ServiceEvents(ProductService)
+export class ProductEvents extends NestServiceEvents<ProductService, any> {
+  // Inline and awaited: whatever it returns replaces the input.
+  beforeCreate(data: any) {
+    record('beforeCreate');
+    if (data?.name === '${BEFORE_PROBE}') return { ...data, name: '${RESHAPED_NAME}' };
+    return data;
+  }
+
+  // Detached: this throw must never reach the client.
+  onCreate() {
+    record('onCreate');
+    throw new Error('e2e: onCreate deliberately throws');
+  }
+
+  onFind() { record('onFind'); }
+  onGet() { record('onGet'); }
+  // this.service is back-assigned by the registry when the class is wired.
+  onPatch() { record(this.service ? 'onPatch:wired' : 'onPatch:unwired'); }
+  onRemove() { record('onRemove'); }
+}
+`, 'utf-8');
+}
+
+/** Hook names recorded so far by the instrumented events class. */
+function recordedEvents(appDir: string): string[] {
+  const logPath = eventsLogPath(appDir);
+  if (!existsSync(logPath)) return [];
+  return readFileSync(logPath, 'utf-8').split('\n').filter(Boolean);
+}
+
+/**
+ * Adds `@UseBefore` / `@UseAfter` to the generated controller's create handler so the
+ * suite can prove the interceptor runs both an inline function and an injectable class.
+ */
+function instrumentControllerHooks(appDir: string): void {
+  const file = path.join(appDir, 'src', 'services', RESOURCE, `${RESOURCE}.controller.ts`);
+  const source = readFileSync(file, 'utf-8');
+
+  const importLine = "import { User, ModifyBody, setCreatedBy } from '@nest-extended/decorators';";
+  if (!source.includes(importLine)) {
+    throw new Error(`Could not find the decorators import in ${file}`);
+  }
+
+  const injected = `import {
+  User,
+  ModifyBody,
+  setCreatedBy,
+  UseBefore,
+  UseAfter,
+  ControllerContext,
+  EventHandler,
+} from '@nest-extended/decorators';
+import { Injectable } from '@nestjs/common';
+import { appendFileSync } from 'node:fs';
+
+const HOOK_LOG = ${JSON.stringify(eventsLogPath(appDir))};
+const noteHook = (line: string): void => appendFileSync(HOOK_LOG, line + '\\n');
+
+@Injectable()
+export class AuditHandler implements EventHandler {
+  handle(ctx: ControllerContext) {
+    noteHook(ctx.result ? 'useAfterClass' : 'useAfterClass:noresult');
+  }
+}`;
+
+  let next = source.replace(importLine, injected);
+  next = next.replace(
+    '  @Post()\n  async create(',
+    `  @Post()
+  @UseBefore((ctx: ControllerContext) => {
+    noteHook('useBefore');
+    if (ctx.body?.name === '${USE_BEFORE_PROBE}') ctx.body.name = '${USE_BEFORE_NAME}';
+  })
+  @UseAfter(AuditHandler, () => noteHook('useAfterFn'))
+  async create(`,
+  );
+
+  if (!next.includes('@UseBefore(')) {
+    throw new Error(`Could not attach @UseBefore to the create handler in ${file}`);
+  }
+
+  writeFileSync(file, next, 'utf-8');
+
+  // An injectable @UseAfter handler must be a provider like any other.
+  const moduleFile = path.join(appDir, 'src', 'services', RESOURCE, `${RESOURCE}.module.ts`);
+  const moduleSource = readFileSync(moduleFile, 'utf-8');
+  const withProvider = moduleSource
+    .replace(
+      "import { ProductController } from './product.controller';",
+      "import { AuditHandler, ProductController } from './product.controller';",
+    )
+    .replace('providers: [ProductService', 'providers: [AuditHandler, ProductService');
+
+  if (!withProvider.includes('AuditHandler')) {
+    throw new Error(`Could not register AuditHandler as a provider in ${moduleFile}`);
+  }
+  writeFileSync(moduleFile, withProvider, 'utf-8');
+}
+
+// ---------------------------------------------------------------------------
 // The HTTP test flow (DB-agnostic)
 // ---------------------------------------------------------------------------
-async function runApiSuite(port: number): Promise<ReturnType<typeof makeSuite>> {
+async function runApiSuite(port: number, appDir: string): Promise<ReturnType<typeof makeSuite>> {
   const request = makeClient(port);
   const suite = makeSuite();
 
@@ -451,6 +591,41 @@ async function runApiSuite(port: number): Promise<ReturnType<typeof makeSuite>> 
     users.status === 200 && asArray(users.body).some((u) => idOf(u) === userId),
     `status=${users.status}`);
 
+  // --- Service events -----------------------------------------------------
+  // The instrumented ProductEvents throws from onCreate on every create, so the
+  // creates above already prove a detached hook cannot break the response. Check
+  // 5 asserting 201 is that proof; assert it explicitly here too.
+  suite.check('POST creates succeed despite a throwing onCreate hook',
+    created.status === 201, `status=${created.status}`);
+
+  // 12. A before* hook runs inline and its return value replaces the input.
+  const probe = await request('POST', `/${RESOURCE}`, { token, body: { name: BEFORE_PROBE } });
+  suite.check('beforeCreate reshapes the payload before it is written',
+    probe.status === 201 && (probe.body as AnyRecord)?.name === RESHAPED_NAME,
+    `status=${probe.status}, name=${String((probe.body as AnyRecord)?.name)}`);
+
+  // 13. A @UseBefore handler runs inline and can reshape the request body.
+  const useBefore = await request('POST', `/${RESOURCE}`, { token, body: { name: USE_BEFORE_PROBE } });
+  suite.check('@UseBefore reshapes the request body before the handler runs',
+    useBefore.status === 201 && (useBefore.body as AnyRecord)?.name === USE_BEFORE_NAME,
+    `status=${useBefore.status}, name=${String((useBefore.body as AnyRecord)?.name)}`);
+
+  // 14. Every hook fired. The detached ones need a moment on the event loop.
+  await sleep(500);
+  const fired = recordedEvents(appDir);
+  const expectedServiceHooks = ['beforeCreate', 'onCreate', 'onFind', 'onGet', 'onPatch:wired', 'onRemove'];
+  const missingService = expectedServiceHooks.filter((hook) => !fired.includes(hook));
+  suite.check('all lifecycle hooks fired and the events class was wired to the service',
+    missingService.length === 0,
+    `missing=[${missingService.join(', ')}] fired=[${[...new Set(fired)].join(', ')}]`);
+
+  // 15. Both @UseAfter forms ran: an injectable class and an inline function.
+  const expectedControllerHooks = ['useBefore', 'useAfterClass', 'useAfterFn'];
+  const missingController = expectedControllerHooks.filter((hook) => !fired.includes(hook));
+  suite.check('@UseBefore and both @UseAfter handler forms ran',
+    missingController.length === 0,
+    `missing=[${missingController.join(', ')}] fired=[${[...new Set(fired)].join(', ')}]`);
+
   return suite;
 }
 
@@ -475,7 +650,15 @@ async function runForCase(c: RunCase, port: number): Promise<RunResult> {
 
   // 2. Generate CRUD resource (cwd = app dir)
   info(`Generating CRUD resource "${RESOURCE}"...`);
-  await nestCli(['g', 'service', RESOURCE, '--db', c.db, '--orm', c.orm, '--validator', 'zod'], { cwd: appDir });
+  await nestCli(
+    ['g', 'service', RESOURCE, '--db', c.db, '--orm', c.orm, '--validator', 'zod', '--events', '--skip-broadcast'],
+    { cwd: appDir },
+  );
+
+  // 2b. Instrument the generated events class and controller so the HTTP suite can
+  //      observe service events and the @UseBefore / @UseAfter decorators firing.
+  instrumentEvents(appDir);
+  instrumentControllerHooks(appDir);
 
   // 3. DB prep
   if (c.orm === 'prisma') {
@@ -527,7 +710,7 @@ async function runForCase(c: RunCase, port: number): Promise<RunResult> {
     }
     info('Server ready. Running API assertions:');
     // 5. Run assertions
-    suite = await runApiSuite(port);
+    suite = await runApiSuite(port, appDir);
   } finally {
     // 6. Teardown
     killServer(server);
@@ -557,6 +740,44 @@ async function packLocalPackages(): Promise<string> {
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
 
+  // Point internal @nest-extended/* deps at the sibling tarballs. Without this npm
+  // resolves them from the registry, so a generated app would install a published
+  // copy of (say) @nest-extended/decorators alongside the local one being tested.
+  // The originals are restored after packing so `dist/` stays publishable.
+  const originalManifests = new Map<string, string>();
+  for (const name of NE_PACKAGES) {
+    const manifestPath = path.join(REPO_ROOT, 'dist', 'packages', name, 'package.json');
+    if (!existsSync(manifestPath)) continue;
+    const original = readFileSync(manifestPath, 'utf-8');
+    const manifest = JSON.parse(original) as { dependencies?: Record<string, string> };
+    let changed = false;
+    for (const dep of Object.keys(manifest.dependencies ?? {})) {
+      const internal = dep.startsWith('@nest-extended/') ? dep.slice('@nest-extended/'.length) : '';
+      if (internal && NE_PACKAGES.includes(internal)) {
+        manifest.dependencies![dep] = `file:${path.join(dir, `${internal}.tgz`)}`;
+        changed = true;
+      }
+    }
+    if (changed) {
+      originalManifests.set(manifestPath, original);
+      writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf-8');
+    }
+  }
+
+  try {
+    packEach(dir);
+  } finally {
+    for (const [manifestPath, original] of originalManifests) {
+      writeFileSync(manifestPath, original, 'utf-8');
+    }
+  }
+
+  info(`Packed @nest-extended/* into ${path.relative(REPO_ROOT, dir)} (installed via file:).`);
+  return dir;
+}
+
+/** `npm pack` each built package into `dir` as `<name>.tgz`. */
+function packEach(dir: string): void {
   for (const name of NE_PACKAGES) {
     const distDir = path.join(REPO_ROOT, 'dist', 'packages', name);
     if (!existsSync(distDir)) {
@@ -571,9 +792,6 @@ async function packLocalPackages(): Promise<string> {
     if (!produced) throw new Error(`npm pack produced no tarball for ${name}`);
     renameSync(path.join(dir, produced), path.join(dir, `${name}.tgz`));
   }
-
-  info(`Packed @nest-extended/* into ${path.relative(REPO_ROOT, dir)} (installed via file:).`);
-  return dir;
 }
 
 /**

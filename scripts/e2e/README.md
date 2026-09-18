@@ -23,14 +23,22 @@ Each case is identified by a `DB+orm` label (e.g. `SQLite+typeorm`).
 ## What it does (per case)
 
 1. `nest-cli g app <db>-<orm>-app --db <DB> --orm <ORM> --validator zod --pm npm --auth`
-2. `nest-cli g service product --db <DB> --orm <ORM> --validator zod`
+2. `nest-cli g service product --db <DB> --orm <ORM> --validator zod --events --skip-broadcast`
+   then **instruments** the generated `product.events.ts` and `product.controller.ts` so the
+   HTTP suite can observe service events and `@UseBefore` / `@UseAfter` firing (see
+   *Service events* below)
 3. **DB prep:**
    - Prisma: `npx prisma generate` + `npx prisma db push`
+     > **Running the suite through an AI agent?** Prisma 7.10+ refuses `db push` when it
+     > detects an agent invoked it, and asks for explicit human consent. Export
+     > `PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION="<your consent message>"` before the run,
+     > or run the Prisma cases yourself. The target is always the throwaway database in
+     > `.e2e-apps/<db>-<orm>-app/`, recreated on every run.
    - TypeORM: `npm run db:sync` (the generated manual schema-sync script; `DB_SYNCHRONIZE` defaults to `false`)
    - Mongoose: none
    For server-backed DBs (PostgreSQL/MySQL/MongoDB) it ensures the server is reachable (see below).
 4. Boot the server (`npm run start`, on a dedicated port) and wait until ready
-5. Run the HTTP suite (11 checks), then kill the server
+5. Run the HTTP suite (16 checks), then kill the server
 
 ### HTTP checks
 
@@ -45,6 +53,29 @@ Each case is identified by a `DB+orm` label (e.g. `SQLite+typeorm`).
 9. `DELETE /product/:id` — soft-delete (2xx)
 10. `GET /product/:id` — confirm the soft-deleted record is hidden
 11. `GET /users` — list includes the registered user
+12. `POST /product` succeeds (201) even though the instrumented `onCreate` throws
+13. `beforeCreate` reshapes the payload before it is written
+14. `@UseBefore` reshapes the request body before the handler runs
+15. Every service hook fired, and `ctx.service` was back-assigned by the registry
+16. `@UseBefore` plus both `@UseAfter` forms (injectable class + inline function) ran
+
+### Service events
+
+Checks 12–16 replace the generated `product.events.ts` with an instrumented version that
+appends each hook it receives to `<appDir>/.events.log`, reshapes a probe payload, and
+throws from `onCreate`. The controller's create handler gets `@UseBefore` / `@UseAfter`
+added, and an `AuditHandler` provider is registered in the resource module.
+
+Together they verify the parts a unit test cannot: `@ServiceEvents` discovery, the
+`ServiceEventsRegistry` wiring at boot, the module providers, the controller calling the
+non-underscore methods, and a detached hook being unable to break a response.
+
+For the dispatcher's own contract (`before*` vs `on*`, `whenSettled()`, `emit()`,
+`events: false`) there is a separate, database-free test:
+
+```bash
+yarn test:events    # scripts/e2e/test-service-events.ts, ~1s
+```
 
 ## Prerequisites
 
@@ -103,6 +134,8 @@ Exit code is `0` only if every non-skipped case passes all checks.
 
 - Generated apps are kept under `.e2e-apps/<db>-<orm>-app/` (gitignored) for
   inspection. Each run recreates them fresh.
+- `.e2e-apps/<db>-<orm>-app/.events.log` records every lifecycle hook the instrumented
+  events class and controller received, in order — useful when checks 12–16 fail.
 - Server logs are written to `.e2e-apps/<db>-<orm>-app.server.log` — check these if a
   server fails to start.
 - The script picks dedicated app-server ports starting at `3100` to avoid
