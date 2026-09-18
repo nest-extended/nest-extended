@@ -17,7 +17,7 @@ jobs:
       - name: Node Setup
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Cache node modules
         uses: actions/cache@v6
@@ -63,7 +63,7 @@ jobs:
       - name: Node Setup
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           registry-url: 'https://registry.npmjs.org'
       - name: Download Artifacts
         uses: actions/download-artifact@v8
@@ -85,7 +85,7 @@ jobs:
       - name: Node Setup
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           registry-url: 'https://registry.npmjs.org'
       - name: Download Artifacts
         uses: actions/download-artifact@v8
@@ -107,7 +107,7 @@ jobs:
       - name: Node Setup
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           registry-url: 'https://registry.npmjs.org'
       - name: Download Artifacts
         uses: actions/download-artifact@v7
@@ -129,7 +129,7 @@ jobs:
       - name: Node Setup
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           registry-url: 'https://registry.npmjs.org'
       - name: Download Artifacts
         uses: actions/download-artifact@v8
@@ -151,7 +151,7 @@ jobs:
       - name: Node Setup
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           registry-url: 'https://registry.npmjs.org'
       - name: Download Artifacts
         uses: actions/download-artifact@v8
@@ -173,7 +173,7 @@ jobs:
       - name: Node Setup
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           registry-url: 'https://registry.npmjs.org'
       - name: Download Artifacts
         uses: actions/download-artifact@v8
