@@ -10,6 +10,7 @@ import { getPrismaServiceFile, getPrismaModuleFile, getPrismaAdapterPackage } fr
 import { prismaPackage } from '../lib/prisma-packages';
 import { getDataSourceFile, getDatabaseModuleFile, getTypeOrmDriverPackage } from '../templates/typeorm-setup.template';
 import { configurePrismaGenerator, ignoreGeneratedPrismaClient } from '../lib/configure-prisma-generator';
+import { injectPrismaScripts } from '../lib/inject-prisma-scripts';
 import { resolveDatabaseAndOrm } from '../lib/resolve-orm';
 import { nestExtendedDep } from '../lib/local-packages';
 
@@ -212,6 +213,11 @@ export const generateAppAction = async (appName: string, options: AppOptions = {
         // generated client out of version control.
         configurePrismaGenerator(appDir);
         ignoreGeneratedPrismaClient(appDir);
+
+        // Inject `prisma:migrate` / `prisma:push` / etc. scripts that chain
+        // `prisma generate` so the client is never stale after a migration.
+        // (Prisma 7 removed the implicit generate-after-migrate behaviour.)
+        injectPrismaScripts(appDir);
 
         // Create PrismaService and PrismaModule
         const prismaDir = path.join(appDir, 'src/prisma');
