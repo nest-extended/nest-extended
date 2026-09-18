@@ -40,7 +40,7 @@ import { Users, UsersDocument } from '../../schemas/users.schema';
 @Injectable()
 export class UsersService extends NestService<Users, UsersDocument> {
   constructor(
-    @InjectModel(Users.name) private readonly usersModel: Model<UsersDocument>,
+    @InjectModel(Users.name) private readonly usersModel: Model<Users>,
   ) {
     super(usersModel);
   }

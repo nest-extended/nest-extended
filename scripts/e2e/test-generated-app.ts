@@ -494,14 +494,20 @@ export class AuditHandler implements EventHandler {
   // An injectable @UseAfter handler must be a provider like any other.
   const moduleFile = path.join(appDir, 'src', 'services', RESOURCE, `${RESOURCE}.module.ts`);
   const moduleSource = readFileSync(moduleFile, 'utf-8');
-  const withProvider = moduleSource
-    .replace(
-      "import { ProductController } from './product.controller';",
-      "import { AuditHandler, ProductController } from './product.controller';",
-    )
-    .replace('providers: [ProductService', 'providers: [AuditHandler, ProductService');
+  const withImport = moduleSource.replace(
+    "import { ProductController } from './product.controller';",
+    "import { AuditHandler, ProductController } from './product.controller';",
+  );
+  // `providers` is emitted single-line without events and multi-line with them,
+  // so anchor on the opening bracket rather than the first provider name.
+  const withProvider = withImport.replace(/providers:\s*\[/, 'providers: [AuditHandler, ');
 
-  if (!withProvider.includes('AuditHandler')) {
+  // Check both edits landed: asserting on the name alone would pass when only
+  // the import matched, leaving the handler unregistered and silently inert.
+  if (!withProvider.includes('{ AuditHandler, ProductController }')) {
+    throw new Error(`Could not import AuditHandler in ${moduleFile}`);
+  }
+  if (!/providers:\s*\[AuditHandler,/.test(withProvider)) {
     throw new Error(`Could not register AuditHandler as a provider in ${moduleFile}`);
   }
   writeFileSync(moduleFile, withProvider, 'utf-8');

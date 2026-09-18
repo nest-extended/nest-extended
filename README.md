@@ -247,7 +247,7 @@ This package provides powerful Prisma integrations for the **NestExtended** ecos
 
 ```typescript
 import { NestService } from '@nest-extended/prisma';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class CatsService extends NestService<any> {

@@ -24,11 +24,11 @@
     }
   ],
   "dependencies": {
-    "@nestjs/common": "^11.1.19",
-    "@nestjs/core": "^11.1.19",
-    "@nestjs/mongoose": "^11.0.4",
-    "@nestjs/platform-express": "^11.1.19",
-    "@nestjs/typeorm": "^11.0.0",
+    "@nestjs/common": "^12.0.1",
+    "@nestjs/core": "^12.0.1",
+    "@nestjs/mongoose": "^12.0.0",
+    "@nestjs/platform-express": "^12.0.1",
+    "@nestjs/typeorm": "^12.0.1",
     "axios": "^1.13.6",
     "chalk": "^4.1.2",
     "commander": "^14.0.3",
@@ -37,7 +37,7 @@
     "inquirer": "^13.3.2",
     "lodash": "^4.17.23",
     "mongoose": "^9.4.1",
-    "nestjs-cls": "^6.2.0",
+    "nestjs-cls": "^6.3.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "typeorm": "^0.3.20",
@@ -45,15 +45,15 @@
   },
   "scripts": {
     "test": "nx test",
-    "test:e2e:generated": "node --import @swc-node/register/esm-register scripts/e2e/test-generated-app.ts",
-    "test:events": "node --import @swc-node/register/esm-register scripts/e2e/test-service-events.ts",
+    "test:e2e:generated": "SWC_NODE_PROJECT=./tsconfig.base.json node --import @swc-node/register/esm-register scripts/e2e/test-generated-app.ts",
+    "test:events": "SWC_NODE_PROJECT=./tsconfig.base.json node --import @swc-node/register/esm-register scripts/e2e/test-service-events.ts",
     "release": "node scripts/release.js",
     "release:prod": "node scripts/release.js --prod"
   },
   "devDependencies": {
     "@eslint/js": "^9.8.0",
-    "@nestjs/schematics": "^11.0.10",
-    "@nestjs/testing": "^11.1.19",
+    "@nestjs/schematics": "^12.0.1",
+    "@nestjs/testing": "^12.0.1",
     "@nx/eslint": "22.7.5",
     "@nx/eslint-plugin": "22.7.5",
     "@nx/js": "22.7.5",
@@ -76,7 +76,7 @@
     "nx": "22.7.5",
     "prettier": "^3.8.1",
     "tslib": "^2.8.1",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.3",
     "typescript-eslint": "^8.57.0",
     "webpack-cli": "^6.0.1"
   }
