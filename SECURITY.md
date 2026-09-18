@@ -7,14 +7,16 @@ NestExtended is released as a set of packages (`@nest-extended/core`, `@nest-ext
 `@nest-extended/typeorm`) that share a single version number. Security fixes are only
 published for the versions below.
 
-| Version  | Supported          |
-| -------- | ------------------ |
-| 1.0.x    | :white_check_mark: |
-| 0.0.2-beta.x | :x:            |
-| < 0.0.2  | :x:                |
+| Version      | Supported          |
+| ------------ | ------------------ |
+| 1.5.x        | :white_check_mark: |
+| 1.0.x        | :white_check_mark: |
+| 0.0.2-beta.x | :x:                |
+| < 0.0.2      | :x:                |
 
-Pre-1.0 releases were beta previews and receive no security updates. If you are still on a
-`0.0.x` release, upgrade to the latest `1.0.x` before reporting an issue.
+Only the latest minor release line receives security fixes. Releases within `1.x` are
+backwards compatible, so if you are on `1.0.x` upgrade to the latest `1.5.x` before
+reporting an issue. Pre-1.0 releases were beta previews and are not supported at all.
 
 ## Reporting a Vulnerability
 
