@@ -5,6 +5,7 @@ export const getPrismaService = (
     name: string,
     events = false,
     broadcast = false,
+    depth = '../../',
 ): string => {
     // See service.template.ts for why this is an `import type`.
     const eventsImport = events
@@ -13,7 +14,7 @@ export const getPrismaService = (
     const generic = events ? `any, ${Name}Events` : 'any';
 
     return `import { Injectable } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaService } from '${depth}prisma/prisma.service';
 import { NestService } from '@nest-extended/prisma';
 ${eventsImport}
 @Injectable()

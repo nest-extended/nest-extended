@@ -275,6 +275,10 @@ export const generateServiceAction = async (rawName: string, options: ServiceOpt
 
     const fullPath = dirPath ? `${dirPath}/${name}` : name;
     const targetDir = `src/services/${fullPath}`;
+    // Prefix that walks from `targetDir` back up to `src/`, for relative imports
+    // into src/schemas and src/prisma. Generated apps are ESM, so those imports
+    // must be relative (and extension-bearing) rather than root-style.
+    const depth = dirPath ? dirPath.split('/').map(() => '../').join('') + '../../' : '../../';
 
     // Resolve --database / --db and --orm (two-step prompt when not supplied).
     const { database, orm, sqlProvider } = await resolveDatabaseAndOrm(options);
@@ -360,7 +364,7 @@ export const generateServiceAction = async (rawName: string, options: ServiceOpt
 
         // Generate service files
         createFileWithContent(`${targetDir}/${name}.module.ts`, getPrismaModule(Name, name, generateEvents));
-        createFileWithContent(`${targetDir}/${name}.service.ts`, getPrismaService(Name, name, generateEvents, broadcastEvents));
+        createFileWithContent(`${targetDir}/${name}.service.ts`, getPrismaService(Name, name, generateEvents, broadcastEvents, depth));
         createFileWithContent(`${targetDir}/${name}.controller.ts`, getPrismaController(Name, name, rawName));
         if (generateEvents) {
             createFileWithContent(`${targetDir}/${name}.events.ts`, getEvents(Name, name, 'prisma'));
@@ -388,15 +392,12 @@ export const generateServiceAction = async (rawName: string, options: ServiceOpt
     } else {
         // --- Mongoose-based generation (existing behavior) ---
 
-        // To compute depth for relative imports to src/schemas
-        const depth = dirPath ? dirPath.split('/').map(() => '../').join('') + '../../' : '../../';
-
         // Generate the DTO based on validator selection
         const dtoContent = validatorType === 'zod' ? getDto(Name) : getDtoClassValidator(Name);
 
         createFileWithContent(`src/schemas/${fullPath}.schema.ts`, getSchema(Name, 'Users', isAuthGenerated, dirPath));
         createFileWithContent(`${targetDir}/${name}.module.ts`, getModule(Name, name, fullPath, depth, generateEvents));
-        createFileWithContent(`${targetDir}/${name}.service.ts`, getService(Name, name, fullPath, generateEvents, broadcastEvents));
+        createFileWithContent(`${targetDir}/${name}.service.ts`, getService(Name, name, fullPath, generateEvents, broadcastEvents, depth));
         createFileWithContent(
             `${targetDir}/${name}.controller.ts`,
             getController(Name, name, rawName, depth, fullPath),

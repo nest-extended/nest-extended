@@ -12,6 +12,7 @@ import { getDataSourceFile, getDatabaseModuleFile, getTypeOrmDriverPackage } fro
 import { configurePrismaGenerator, ignoreGeneratedPrismaClient } from '../lib/configure-prisma-generator';
 import { resolveDatabaseAndOrm } from '../lib/resolve-orm';
 import { nestExtendedDep } from '../lib/local-packages';
+import { convertAppToCommonJs } from '../lib/convert-app-to-commonjs';
 
 const PM_CHOICES = ['npm', 'yarn', 'pnpm'];
 const VALIDATOR_CHOICES = ['zod', 'class-validator'];
@@ -99,6 +100,9 @@ export const generateAppAction = async (appName: string, options: AppOptions = {
             else reject(new Error(`nest new failed with code ${code}`));
         });
     });
+
+    // `nest new` scaffolds an ESM app from v12 on; the generated code is CommonJS.
+    convertAppToCommonJs(appDir);
 
     const pkg = require('../../package.json');
     const nestExtendedVersion = pkg.version;
