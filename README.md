@@ -86,7 +86,7 @@ nest-cli generate auth
 Generates a complete resource bundle including:
 - **Module**: Registers the controller and service.
 - **Service**: Extends `NestService` from `@nest-extended/mongoose`, `@nest-extended/prisma`, or `@nest-extended/typeorm` depending on the ORM selection.
-- **Controller**: Standard CRUD controller, calling the event-firing service methods.
+- **Controller**: Standard CRUD controller, calling the event-firing service methods. Alongside `GET /<resource>` it exposes `QUERY /<resource>` — the same read with the query sent as a JSON body (HTTP QUERY, RFC 10008).
 - **Events**: A `{name}.events.ts` lifecycle-hooks class, registered in the module's providers — see [Service Events](#service-events). Skip with `--skip-events`.
 - **Schema/Model/Entity**: Mongoose schema, Prisma model (appended to `schema.prisma`), or TypeORM entity, all with soft delete fields.
 - **DTO**: Data Transfer Object with validation (Zod or class-validator, user selects during generation).
@@ -327,6 +327,7 @@ This package provides useful decorators for NestJS applications.
 - **`@User()`**: Retrieves the current user from the request (integrates with `nestjs-cls` or request object).
 - **`@Public()`**: Marks a route as public (useful for authentication guards).
 - **`@ModifyBody()`**: Allows modification of the request body before validation (e.g., setting `createdBy`).
+- **`@QueryBody()`**: Reads the query from the content of an HTTP QUERY request (RFC 10008) as a plain query object — the body counterpart of `@Query()`, used by the `QUERY /<resource>` route the CLI emits.
 - **`@UseBefore()` / `@UseAfter()`**: Run an inline function or an injectable handler class around a route handler (or a whole controller). `@UseBefore` is awaited and can reshape the request; `@UseAfter` is detached and cannot alter the response.
 
 #### Installation

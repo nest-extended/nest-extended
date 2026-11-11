@@ -3,13 +3,15 @@ export const getTypeOrmController = (Name: string, name: string, url: string): s
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   Patch,
   Post,
   Query,
+  QueryMethod,
 } from '@nestjs/common';
 import { ${Name}Service } from './${name}.service';
-import { User, ModifyBody, setCreatedBy } from '@nest-extended/decorators';
+import { User, ModifyBody, setCreatedBy, QueryBody } from '@nest-extended/decorators';
 
 @Controller('${url}')
 export class ${Name}Controller {
@@ -17,6 +19,16 @@ export class ${Name}Controller {
 
   @Get()
   async find(@Query() query: Record<string, any>) {
+    return await this.${name}Service.find(query);
+  }
+
+  // HTTP QUERY (RFC 10008) — the read GET performs, with the query sent as a JSON
+  // body instead of a URL query string. Cache-Control: no-store because a cache that
+  // predates the RFC keys on method + URL alone, and would serve one query's result
+  // for another's.
+  @QueryMethod()
+  @Header('Cache-Control', 'no-store')
+  async query(@QueryBody() query: Record<string, any>) {
     return await this.${name}Service.find(query);
   }
 

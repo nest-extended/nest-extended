@@ -31,6 +31,54 @@ parsed with `parseInt`/`Math.abs`).
 > You can pass the same object directly when calling `_find` in code —
 > `service._find({ name: 'kitty', $limit: 10 })` — without going through HTTP.
 
+## Sending the query in the body (HTTP QUERY)
+
+Controllers emitted by `nest-cli g service` also answer **`QUERY /<resource>`** — the
+HTTP QUERY method ([RFC 10008](https://www.rfc-editor.org/rfc/rfc10008.html)), a read
+that is safe and idempotent like `GET` but carries its parameters in the request content.
+It runs the *same* `find(query)` as `GET /<resource>`: identical filters, `$` parameters,
+pagination envelope, soft-delete filtering and `beforeFind` / `onFind` events.
+
+```bash
+curl -X QUERY http://localhost:3000/product \
+  -H 'Authorization: Bearer <token>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "status": "active",
+        "price": { "$gte": 10, "$lte": 100 },
+        "$sort": { "createdAt": -1 },
+        "$limit": 10,
+        "$skip": 10,
+        "$select": ["name", "price"]
+      }'
+```
+
+The body **is** the query object from this guide, so nothing needs `qs` bracket encoding,
+and its size is bounded by Nest's JSON body-parser limit (100 kB by default) rather than by
+how long a URL a proxy will accept. Unlike a query string it also preserves JSON types:
+`$limit` arrives as the number `10` rather than the string `'10'`, and `true` / `null`
+arrive as themselves instead of `'true'` / `'null'` — so with Prisma and TypeORM numeric and
+boolean columns can be filtered without leaning on the adapter to coerce a string.
+
+Rules the generated route enforces:
+
+| Situation | Response |
+|---|---|
+| `Content-Type: application/json` and a JSON object body | `200` + the same payload `GET` returns |
+| `{}` as the body | `200` — matches everything, like `GET` with no query string |
+| No `Content-Type`, or content that is not a JSON object (array, `null`, a scalar, malformed JSON) | `400` |
+| Any other content type | `415` |
+| A URL query string alongside the body | ignored — the content is the whole query |
+
+Responses carry `Cache-Control: no-store`. RFC 10008 makes QUERY responses cacheable and
+requires a cache key that incorporates the request content; a cache that predates the RFC
+keys on method + URL alone and would serve one query's result for another's.
+
+`GET /<resource>` is unchanged — QUERY is an additional route, not a replacement — and
+both sit behind the same auth guard. The route needs `@nestjs/common` v12 or newer (which
+is what `g app` scaffolds) for its `@QueryMethod()` decorator, and a client, proxy or
+gateway that forwards the QUERY method; where one does not, keep using `GET`.
+
 ## Special parameters
 
 | Parameter | Mongoose | Prisma | TypeORM | Meaning |

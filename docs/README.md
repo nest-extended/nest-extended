@@ -15,7 +15,7 @@ source of truth — this folder links to them rather than repeating them.
 | Scaffold a new app or add the packages to an existing one | [getting-started.md](getting-started.md) |
 | Look up a `nest-cli` command, flag, or prompt | [cli-reference.md](cli-reference.md) |
 | Understand the app that `nest-cli g app` produces (structure, HTTP API, auth) | [generated-app.md](generated-app.md) |
-| Write queries over HTTP (`$limit`, `$sort`, operators, pagination) | [querying.md](querying.md) |
+| Write queries over HTTP (`$limit`, `$sort`, operators, pagination, `QUERY` bodies) | [querying.md](querying.md) |
 | Understand or configure soft delete and audit fields | [soft-delete-and-auditing.md](soft-delete-and-auditing.md) |
 | Run logic around CRUD operations (service events, `@UseBefore` / `@UseAfter`) | [events.md](events.md) |
 | Run or extend the end-to-end test suite | [testing.md](testing.md) |

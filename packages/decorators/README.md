@@ -8,6 +8,7 @@ This package provides reusable parameter, method, and class decorators for NestJ
 - **`@Public()`**: Method decorator that marks a route as public. Sets `isPublic` metadata which `AuthGuard` checks to bypass JWT verification. Uses the `IS_PUBLIC_KEY` constant.
 - **`@ModifyBody(...fns)`**: Parameter decorator that intercepts and modifies the request body before it reaches the handler. Accepts one or more modifier functions that receive the full request and can mutate `req.body`.
 - **`setCreatedBy(key?)`**: Built-in modifier function for `@ModifyBody()`. Sets `body[key]` (default: `'createdBy'`) to `req.user._id`. Can be customized with any key (e.g., `setCreatedBy('updatedBy')`).
+- **`@QueryBody()`**: Parameter decorator that reads the query from the content of an HTTP QUERY request ([RFC 10008](https://www.rfc-editor.org/rfc/rfc10008.html)) and returns it as a plain object — the same shape `@Query()` gives for a query string. Rejects a request with no `Content-Type` or a non-object body (`400`) and any content type other than `application/json` (`415`). Pair it with Nest's `@QueryMethod()` route decorator.
 - **`@UseBefore(...handlers)` / `@UseAfter(...handlers)`**: Run handlers around a route handler. Each handler is an inline function or an injectable class implementing `EventHandler`. Valid on a single method or a whole controller (class-level handlers run first). `@UseBefore` is awaited and may reshape the request; `@UseAfter` is detached — it cannot alter the response and its failures are logged per handler.
 
 > `@UseBefore` / `@UseAfter` are executed by `UseHooksInterceptor` in `@nest-extended/core`, which `NestExtendedModule.forRoot()` registers globally. For logic that should run for *every* caller — not just HTTP requests — use service events instead (`NestServiceEvents` in `@nest-extended/core`).
@@ -40,6 +41,27 @@ export class CatsController {
   getProfile(@User() user: any) { ... }
 }
 ```
+
+### `@QueryBody()`
+
+`QUERY` is a read like `GET`, with its parameters in the request content instead of the URL:
+
+```typescript
+import { QueryBody } from '@nest-extended/decorators';
+import { Controller, Get, Query, QueryMethod } from '@nestjs/common';
+
+@Controller('cats')
+export class CatsController {
+  @Get()
+  find(@Query() query: Record<string, any>) { ... }      // ?colour=tabby&$limit=10
+
+  @QueryMethod()                                          // QUERY /cats
+  query(@QueryBody() query: Record<string, any>) { ... }   // { "colour": "tabby", "$limit": 10 }
+}
+```
+
+Both handlers receive the same shape, so they can call the same service method. The body is
+the whole query — a URL query string on a QUERY request is ignored.
 
 ### `@UseBefore` / `@UseAfter`
 
@@ -87,6 +109,7 @@ interface ControllerContext {
 | `setCreatedBy` | Function | Body modifier — sets `createdBy`/custom key to user ID |
 | `RequestBody<TBody, TUser>` | Type | Typed request with `body` and `user` |
 | `ModifyBodyFn<TBody, TUser>` | Type | Function signature for `@ModifyBody()` transforms |
+| `QueryBody` | Decorator | Read an HTTP QUERY (RFC 10008) JSON body as a query object |
 | `UseBefore` | Decorator | Run handlers before the route handler (awaited, may reshape the request) |
 | `UseAfter` | Decorator | Run handlers after the response (detached, cannot alter it) |
 | `UseHandler` | Type | `((ctx: ControllerContext) => any) \| Type<EventHandler>` |
