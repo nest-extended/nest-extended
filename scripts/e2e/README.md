@@ -38,7 +38,7 @@ Each case is identified by a `DB+orm` label (e.g. `SQLite+typeorm`).
    - Mongoose: none
    For server-backed DBs (PostgreSQL/MySQL/MongoDB) it ensures the server is reachable (see below).
 4. Boot the server (`npm run start`, on a dedicated port) and wait until ready
-5. Run the HTTP suite (16 checks), then kill the server
+5. Run the HTTP suite (21 checks), then kill the server
 
 ### HTTP checks
 
@@ -46,22 +46,34 @@ Each case is identified by a `DB+orm` label (e.g. `SQLite+typeorm`).
 2. `POST /authentication` — login (200, token)
 3. `GET /authentication/verify` — verify token
 4. `GET /product` without token — rejected (401)
-5. `POST /product` — create (201, id)
-6. `GET /product` — list contains the record
-7. `GET /product/:id` — get one
-8. `PATCH /product/:id` — update
-9. `DELETE /product/:id` — soft-delete (2xx)
-10. `GET /product/:id` — confirm the soft-deleted record is hidden
-11. `GET /users` — list includes the registered user
-12. `POST /product` succeeds (201) even though the instrumented `onCreate` throws
-13. `beforeCreate` reshapes the payload before it is written
-14. `@UseBefore` reshapes the request body before the handler runs
-15. Every service hook fired, and `ctx.service` was back-assigned by the registry
-16. `@UseBefore` plus both `@UseAfter` forms (injectable class + inline function) ran
+5. `QUERY /product` without token — rejected (401)
+6. `POST /product` — create (201, id)
+7. `GET /product` — list contains the record
+8. `QUERY /product` — the JSON body filters, sorts and paginates the same read
+9. `QUERY /product` repeated — identical result (the read is idempotent)
+10. `QUERY /product` with an array body — rejected (400)
+11. `GET /product/:id` — get one
+12. `PATCH /product/:id` — update
+13. `DELETE /product/:id` — soft-delete (2xx)
+14. `GET /product/:id` — confirm the soft-deleted record is hidden
+15. `QUERY /product` — confirm it is hidden from the QUERY read as well
+16. `GET /users` — list includes the registered user
+17. `POST /product` succeeds (201) even though the instrumented `onCreate` throws
+18. `beforeCreate` reshapes the payload before it is written
+19. `@UseBefore` reshapes the request body before the handler runs
+20. Every service hook fired, and `ctx.service` was back-assigned by the registry
+21. `@UseBefore` plus both `@UseAfter` forms (injectable class + inline function) ran
+
+### HTTP QUERY
+
+Checks 5, 8–10 and 15 cover `QUERY /<resource>` — the RFC 10008 read the controller
+templates emit next to `GET`, with the query in a JSON body. Here they run against a real
+database; `yarn test:query` covers the route's contract (content types, rejected bodies,
+untouched CRUD) for all three ORM templates without one.
 
 ### Service events
 
-Checks 12–16 replace the generated `product.events.ts` with an instrumented version that
+Checks 17–21 replace the generated `product.events.ts` with an instrumented version that
 appends each hook it receives to `<appDir>/.events.log`, reshapes a probe payload, and
 throws from `onCreate`. The controller's create handler gets `@UseBefore` / `@UseAfter`
 added, and an `AuditHandler` provider is registered in the resource module.
@@ -135,7 +147,7 @@ Exit code is `0` only if every non-skipped case passes all checks.
 - Generated apps are kept under `.e2e-apps/<db>-<orm>-app/` (gitignored) for
   inspection. Each run recreates them fresh.
 - `.e2e-apps/<db>-<orm>-app/.events.log` records every lifecycle hook the instrumented
-  events class and controller received, in order — useful when checks 12–16 fail.
+  events class and controller received, in order — useful when checks 17–21 fail.
 - Server logs are written to `.e2e-apps/<db>-<orm>-app.server.log` — check these if a
   server fails to start.
 - The script picks dedicated app-server ports starting at `3100` to avoid

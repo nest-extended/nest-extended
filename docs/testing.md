@@ -54,7 +54,7 @@ For each case, in order:
 4. Boot the server (`npm run start` on a dedicated port) and wait until it responds (up to 90s).
 5. Run the HTTP assertion suite, then kill the server.
 
-### The HTTP checks (16)
+### The HTTP checks (21)
 
 Run against each booted app by `runApiSuite`:
 
@@ -64,22 +64,49 @@ Run against each booted app by `runApiSuite`:
 | 2 | `POST /authentication` | 200, returns `accessToken` |
 | 3 | `GET /authentication/verify` | 200, returns the user matching the registered email |
 | 4 | `GET /product` (no token) | 401 — the global auth guard rejects unauthenticated access |
-| 5 | `POST /product` | 201, returns an id |
-| 6 | `GET /product` | 200, list contains the created record |
-| 7 | `GET /product/:id` | 200, returns the record |
-| 8 | `PATCH /product/:id` | 200, the update is applied |
-| 9 | `DELETE /product/:id` | 2xx (soft delete) |
-| 10 | `GET /product/:id` | 404 / null — the soft-deleted record is hidden |
-| 11 | `GET /users` | 200, list includes the registered user |
-| 12 | `POST /product` | 201 even though the instrumented `onCreate` throws |
-| 13 | `POST /product` (probe name) | `beforeCreate` reshaped the payload before it was written |
-| 14 | `POST /product` (probe name) | `@UseBefore` reshaped the request body |
-| 15 | `.events.log` | every service hook fired, and the registry back-assigned `ctx.service` |
-| 16 | `.events.log` | `@UseBefore` and both `@UseAfter` forms ran |
+| 5 | `QUERY /product` (no token) | 401 — the guard covers the QUERY route too |
+| 6 | `POST /product` | 201, returns an id |
+| 7 | `GET /product` | 200, list contains the created record |
+| 8 | `QUERY /product` | 200, the JSON body filters, sorts and paginates the same read |
+| 9 | `QUERY /product` (repeated) | the identical result — the read is idempotent |
+| 10 | `QUERY /product` (array body) | 400 — a non-object body is rejected |
+| 11 | `GET /product/:id` | 200, returns the record |
+| 12 | `PATCH /product/:id` | 200, the update is applied |
+| 13 | `DELETE /product/:id` | 2xx (soft delete) |
+| 14 | `GET /product/:id` | 404 / null — the soft-deleted record is hidden |
+| 15 | `QUERY /product` | the soft-deleted record is gone from the QUERY read as well |
+| 16 | `GET /users` | 200, list includes the registered user |
+| 17 | `POST /product` | 201 even though the instrumented `onCreate` throws |
+| 18 | `POST /product` (probe name) | `beforeCreate` reshaped the payload before it was written |
+| 19 | `POST /product` (probe name) | `@UseBefore` reshaped the request body |
+| 20 | `.events.log` | every service hook fired, and the registry back-assigned `ctx.service` |
+| 21 | `.events.log` | `@UseBefore` and both `@UseAfter` forms ran |
 
-#### The service-event checks (12–16)
+#### The HTTP QUERY checks (5, 8–10, 15)
 
-Checks 12–16 exist because service events are almost entirely a **wiring** feature:
+Generated controllers expose `QUERY /<resource>` — [RFC 10008](https://www.rfc-editor.org/rfc/rfc10008.html)'s
+safe, idempotent read with the query in the request content — alongside `GET`. These
+checks prove that against a real database: the same filters, `$` operators, sorting,
+pagination envelope and soft-delete filter as `GET`, still behind the auth guard, with the
+rejection paths mapped to `400`/`415` by the ORM's `GlobalExceptionFilter`. See
+[querying.md](querying.md#sending-the-query-in-the-body-http-query).
+
+For the route's own contract — content-type rules, the full rejected-body matrix, that a
+URL query string is ignored, that `GET`/`POST`/`PATCH`/`DELETE` are untouched, and that
+`beforeFind`/`onFind` still fire — there is a separate database-free test that compiles the
+emitted controller of all three ORM templates and drives it over real HTTP in about ten
+seconds:
+
+```bash
+yarn test:query
+```
+
+Source: [`../scripts/e2e/test-query.ts`](../scripts/e2e/test-query.ts). Run it as the fast
+inner loop when changing the controller templates or the `@QueryBody()` decorator.
+
+#### The service-event checks (17–21)
+
+Checks 17–21 exist because service events are almost entirely a **wiring** feature:
 `@ServiceEvents()` discovery, the `ServiceEventsRegistry`, the module providers, and the
 controller calling `create()` rather than `_create()`. None of that can be verified
 without a real Nest app.

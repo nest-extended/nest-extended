@@ -223,10 +223,19 @@ raw argument — e.g. `product`, `user-profile`, `qna/category`) and exposes:
 | Method & path | Service call | Notes |
 |---|---|---|
 | `GET /<resource>` | `find(query)` | List with filtering/sorting/pagination — see [querying.md](querying.md) |
+| `QUERY /<resource>` | `find(query)` | The same list read with the query sent as a JSON body — HTTP QUERY ([RFC 10008](https://www.rfc-editor.org/rfc/rfc10008.html)), see [querying.md](querying.md#sending-the-query-in-the-body-http-query) |
 | `GET /<resource>/:id` | `get(id, query)` | Single record; `null` result becomes `404` via the interceptor |
 | `POST /<resource>` | `create(dto)` | Request body runs through `@ModifyBody(setCreatedBy())`, which sets `createdBy` to the authenticated user's id |
 | `PATCH /<resource>/:id` | `patch(id, dto, query)` | Body runs through `@ModifyBody(setCreatedBy('updatedBy'))`, setting `updatedBy` |
 | `DELETE /<resource>/:id` | `remove(id, query, user)` | Soft delete by default — see [soft-delete-and-auditing.md](soft-delete-and-auditing.md) |
+
+> **`QUERY` is additive.** `GET /<resource>` is unchanged; the QUERY route is a second
+> read handler on the same collection path, behind the same guard, calling the same
+> `find(query)` — so filters, `$` parameters, the pagination envelope, soft-delete
+> filtering and the `beforeFind` / `onFind` events all behave identically. It needs
+> `@nestjs/common` v12+ (for `@QueryMethod()`) and a client that can send the method.
+> Content-type rules, rejected bodies and caching are covered in
+> [querying.md](querying.md#sending-the-query-in-the-body-http-query).
 
 > **Why the non-underscore names?** They are the event-firing versions of
 > `_find` / `_get` / `_create` / `_patch` / `_remove` — identical arguments and return
