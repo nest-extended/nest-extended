@@ -13,6 +13,7 @@ import { configurePrismaGenerator, ignoreGeneratedPrismaClient } from '../lib/co
 import { resolveDatabaseAndOrm } from '../lib/resolve-orm';
 import { nestExtendedDep } from '../lib/local-packages';
 import { convertAppToCommonJs } from '../lib/convert-app-to-commonjs';
+import { ensureHealthEndpoint } from '../lib/ensure-health-endpoint';
 
 const PM_CHOICES = ['npm', 'yarn', 'pnpm'];
 const VALIDATOR_CHOICES = ['zod', 'class-validator'];
@@ -191,6 +192,10 @@ export const generateAppAction = async (appName: string, options: AppOptions = {
     }
 
     console.log(chalk.blue('Configuring project...'));
+
+    if (generateAuth) {
+        ensureHealthEndpoint(appDir);
+    }
 
     if (orm === 'prisma') {
         // --- Prisma-based app setup ---
