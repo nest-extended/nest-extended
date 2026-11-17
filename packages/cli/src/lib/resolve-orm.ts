@@ -1,4 +1,4 @@
-import * as inquirer from 'inquirer';
+import inquirer from 'inquirer';
 import * as chalk from 'chalk';
 
 export type Orm = 'prisma' | 'typeorm' | 'mongoose';
@@ -64,11 +64,9 @@ export const resolveDatabaseAndOrm = async (
         }
         database = norm;
     } else {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
         const answer = await inquirer.prompt([
             {
-                type: 'list',
+                type: 'select',
                 name: 'database',
                 message: 'Which database would you like to use?',
                 choices: DB_CHOICES,
@@ -109,11 +107,9 @@ export const resolveDatabaseAndOrm = async (
             }
             orm = ormInput as Orm;
         } else if (wasDbInteractive) {
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-expect-error inquirer prompt typing
             const answer = await inquirer.prompt([
                 {
-                    type: 'list',
+                    type: 'select',
                     name: 'orm',
                     message: 'Which ORM would you like to use?',
                     choices: ['Prisma', 'TypeORM'],

@@ -60,4 +60,12 @@ program.command('help')
         console.log('');
     });
 
-program.parse(process.argv);
+program.parseAsync(process.argv).catch((err: unknown) => {
+    // inquirer >= 9 rejects with ExitPromptError when the user hits Ctrl+C at a prompt.
+    if (err instanceof Error && err.name === 'ExitPromptError') {
+        console.log(chalk.gray('\nAborted.'));
+        process.exit(130);
+    }
+    console.error(err);
+    process.exit(1);
+});

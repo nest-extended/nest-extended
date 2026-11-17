@@ -1,4 +1,4 @@
-import * as inquirer from 'inquirer';
+import inquirer from 'inquirer';
 import * as chalk from 'chalk';
 import * as path from 'path';
 import * as fs from 'fs-extra';
@@ -33,10 +33,8 @@ export const generateAppAction = async (appName: string, options: AppOptions = {
         process.exit(1);
     }
     if (!pkgManager) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
         const answer = await inquirer.prompt([{
-            type: 'list',
+            type: 'select',
             name: 'pkgManager',
             message: 'Which package manager would you like to use?',
             choices: PM_CHOICES,
@@ -55,10 +53,8 @@ export const generateAppAction = async (appName: string, options: AppOptions = {
         process.exit(1);
     }
     if (!validatorType) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
         const answer = await inquirer.prompt([{
-            type: 'list',
+            type: 'select',
             name: 'validatorType',
             message: 'Which validation library would you like to use?',
             choices: VALIDATOR_CHOICES,
@@ -74,8 +70,6 @@ export const generateAppAction = async (appName: string, options: AppOptions = {
     } else if (options.skipAuth) {
         generateAuth = false;
     } else {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
         const answer = await inquirer.prompt([{
             type: 'confirm',
             name: 'generateAuth',

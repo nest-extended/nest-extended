@@ -1,6 +1,6 @@
 import * as chalk from 'chalk';
 import * as fs from 'fs-extra';
-import * as inquirer from 'inquirer';
+import inquirer from 'inquirer';
 import * as path from 'path';
 import { glob } from 'glob';
 
@@ -112,8 +112,6 @@ function collectChanges(files: string[]): FileChange[] {
 }
 
 async function confirm(): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-expect-error
     const answer = await inquirer.prompt([{
         type: 'confirm',
         name: 'apply',

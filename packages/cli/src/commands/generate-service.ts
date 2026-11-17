@@ -1,7 +1,7 @@
 import * as chalk from 'chalk';
 import * as path from 'path';
 import * as fs from 'fs-extra';
-import * as inquirer from 'inquirer';
+import inquirer from 'inquirer';
 import { spawn } from 'child_process';
 import { createFileWithContent } from '../lib/create-file';
 import { ensureEventEmitterModule, updateAppModule } from '../lib/update-app-module';
@@ -249,8 +249,6 @@ const resolveConfirm = async (
     if (enable) return true;
     if (disable) return false;
 
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-expect-error
     const answer = await inquirer.prompt([{
         type: 'confirm',
         name,
@@ -290,10 +288,8 @@ export const generateServiceAction = async (rawName: string, options: ServiceOpt
         process.exit(1);
     }
     if (!validatorType) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
         const answer = await inquirer.prompt([{
-            type: 'list',
+            type: 'select',
             name: 'validatorType',
             message: 'Which validation library would you like to use?',
             choices: VALIDATOR_CHOICES,
