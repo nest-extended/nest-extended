@@ -47,6 +47,7 @@
     "test": "nx test",
     "test:e2e:generated": "SWC_NODE_PROJECT=./tsconfig.base.json node --import @swc-node/register/esm-register scripts/e2e/test-generated-app.ts",
     "test:events": "SWC_NODE_PROJECT=./tsconfig.base.json node --import @swc-node/register/esm-register scripts/e2e/test-service-events.ts",
+    "test:query": "nx run-many -t build -p cli core decorators && SWC_NODE_PROJECT=./tsconfig.base.json node --import @swc-node/register/esm-register scripts/e2e/test-query.ts",
     "release": "node scripts/release.js",
     "release:prod": "node scripts/release.js --prod"
   },

@@ -532,7 +532,7 @@ For `nest-cli g service <name>` (e.g., `user-profile` → `UserProfile`):
 | `src/schemas/<name>.schema.ts` | Mongoose schema with timestamps, soft delete fields (`select: false` on `deleted`, `deletedAt`, `deletedBy`, `updatedBy`), optional auth fields |
 | `src/services/<name>/<name>.module.ts` | Module with MongooseModule.forFeature |
 | `src/services/<name>/<name>.service.ts` | NestService extension |
-| `src/services/<name>/<name>.controller.ts` | Full CRUD controller with decorators |
+| `src/services/<name>/<name>.controller.ts` | Full CRUD controller with decorators — `GET`, `QUERY` (RFC 10008, same read with a JSON body), `POST`, `PATCH`, `DELETE` |
 | `src/services/<name>/dto/<name>.dto.ts` | Zod validations or class-validator DTOs (based on user selection) |
 | `src/services/<name>/<name>.service.spec.ts` | Service unit test |
 | `src/services/<name>/<name>.controller.spec.ts` | Controller unit test |
@@ -572,6 +572,7 @@ packages/decorators/src/
 ├── User.decorator.ts            ← @User() param decorator
 ├── Public.decorator.ts          ← @Public() method decorator + IS_PUBLIC_KEY
 ├── ModifyBody.decorator.ts      ← @ModifyBody() param decorator + setCreatedBy, RequestBody type
+├── QueryBody.decorator.ts       ← @QueryBody() param decorator (HTTP QUERY body, RFC 10008)
 └── UseHooks.decorator.ts        ← @UseBefore() / @UseAfter() + ControllerContext, EventHandler
 ```
 
@@ -586,6 +587,7 @@ packages/decorators/src/
 | `setCreatedBy(key?)` | Function | Transform for `@ModifyBody` — sets `body[key]` to `user._id` (default key: `'createdBy'`) |
 | `RequestBody<TBody, TUser>` | Type | Typed request: `Omit<Request, 'body'|'user'> & { user: TUser, body: TBody }` |
 | `ModifyBodyFn<TBody, TUser>` | Type | Transform function type for `@ModifyBody` |
+| `QueryBody()` | Param Decorator | Reads an HTTP QUERY (RFC 10008) JSON body as a query object; `400` without a `Content-Type` or for a non-object body, `415` for any other content type |
 | `UseBefore(...handlers)` | Class/Method Decorator | Runs handlers before the route handler, awaited; they may mutate `ctx.body`/`ctx.query` |
 | `UseAfter(...handlers)` | Class/Method Decorator | Runs handlers after the response, detached; cannot alter it, failures are logged per handler |
 | `UseHandler` | Type | `((ctx: ControllerContext) => any) \| Type<EventHandler>` |
@@ -727,6 +729,7 @@ The `release.js` script:
 15. **Events need `NestExtendedModule.forRoot()`** — it registers the `ServiceEventsRegistry` that wires `@ServiceEvents()` classes, and the `@UseBefore`/`@UseAfter` interceptor.
 16. **An events class needs both decorators** — `@Injectable()` *and* `@ServiceEvents(TheService)`, and must be in the module's `providers`. It imports the service as a value; the service imports it with `import type` to avoid a runtime cycle.
 17. **Prisma is pinned to v7** — `packages/cli/src/lib/prisma-packages.ts` holds `PRISMA_VERSION_RANGE`. Prisma 8 ("Prisma Next") drops `prisma init --datasource-provider`, `prisma generate` and `prisma db push`, moves the ORM commands under `prisma orm`, and changes the client layout; the `prisma` CLI also ships an 8.0.0 RC on the `latest` npm tag. Everything the generator emits targets Prisma 7. Use `prismaPackage(name)` when adding a Prisma dependency so it stays pinned.
+18. **Generated controllers expose HTTP QUERY** — next to `GET /<resource>` the three controller templates emit `QUERY /<resource>` (`@QueryMethod()` from `@nestjs/common` v12+, `@QueryBody()` from `@nest-extended/decorators`), calling the same `find(query)`. It is additive: `GET` is unchanged, and no service or adapter code is involved. See `docs/querying.md`.
 7. **Build before publish** — always run `yarn nx run-many -t build` to verify changes compile.
 8. **Version sync** — use `node scripts/release.js <ver>` to keep all package versions in sync.
 9. **Read the README files** — for detailed API docs, reference the README paths listed in Section 3.
@@ -773,6 +776,7 @@ The `release.js` script:
 | @User decorator | `packages/decorators/src/User.decorator.ts` |
 | @Public decorator | `packages/decorators/src/Public.decorator.ts` |
 | @ModifyBody decorator | `packages/decorators/src/ModifyBody.decorator.ts` |
+| @QueryBody decorator | `packages/decorators/src/QueryBody.decorator.ts` |
 | Release script | `scripts/release.js` |
 | CI workflow | `.github/workflows/ci.yml` |
 | Publish workflow | `.github/workflows/publish.yml` |

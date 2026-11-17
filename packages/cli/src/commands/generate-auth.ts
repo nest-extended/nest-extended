@@ -4,6 +4,7 @@ import * as fs from 'fs-extra';
 import { spawn } from 'child_process';
 import { updateAppModule } from '../lib/update-app-module';
 import { generateAuthServices } from '../lib/generate-auth-services';
+import { ensureHealthEndpoint } from '../lib/ensure-health-endpoint';
 
 export const generateAuthAction = async () => {
     const projectDir = process.cwd();
@@ -48,6 +49,7 @@ export const generateAuthAction = async () => {
     console.log(chalk.blue('Configuring project...'));
 
     generateAuthServices(appDir);
+    ensureHealthEndpoint(appDir);
 
     // Update app.module.ts to add modules
     await updateAppModule('Auth', 'auth');

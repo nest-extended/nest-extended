@@ -446,7 +446,8 @@ function instrumentControllerHooks(appDir: string): void {
   const file = path.join(appDir, 'src', 'services', RESOURCE, `${RESOURCE}.controller.ts`);
   const source = readFileSync(file, 'utf-8');
 
-  const importLine = "import { User, ModifyBody, setCreatedBy } from '@nest-extended/decorators';";
+  const importLine =
+    "import { User, ModifyBody, setCreatedBy, QueryBody } from '@nest-extended/decorators';";
   if (!source.includes(importLine)) {
     throw new Error(`Could not find the decorators import in ${file}`);
   }
@@ -455,6 +456,7 @@ function instrumentControllerHooks(appDir: string): void {
   User,
   ModifyBody,
   setCreatedBy,
+  QueryBody,
   UseBefore,
   UseAfter,
   ControllerContext,
@@ -557,6 +559,10 @@ async function runApiSuite(port: number, appDir: string): Promise<ReturnType<typ
   suite.check(`GET /${RESOURCE} without token is rejected (401)`,
     unauth.status === 401, `status=${unauth.status}`);
 
+  const unauthQuery = await request('QUERY', `/${RESOURCE}`, { body: {} });
+  suite.check(`QUERY /${RESOURCE} without token is rejected (401)`,
+    unauthQuery.status === 401, `status=${unauthQuery.status}`);
+
   // 5. Create resource
   const created = await request('POST', `/${RESOURCE}`, { token, body: { name: productName } });
   suite.check(`POST /${RESOURCE} creates a record (201 + id)`,
@@ -568,6 +574,24 @@ async function runApiSuite(port: number, appDir: string): Promise<ReturnType<typ
   suite.check(`GET /${RESOURCE} lists the created record`,
     list.status === 200 && asArray(list.body).some((r) => idOf(r) === recordId),
     `status=${list.status}`);
+
+  // 6b. The same read over HTTP QUERY (RFC 10008), with the query as a JSON body.
+  // Operators, pagination and sorting all arrive as real JSON types, not strings.
+  const queryBody = { name: { $in: [productName] }, $limit: 1, $skip: 0, $sort: { name: 1 } };
+  const queried = await request('QUERY', `/${RESOURCE}`, { token, body: queryBody });
+  suite.check(`QUERY /${RESOURCE} filters, sorts and paginates from a JSON body`,
+    queried.status === 200 && asArray(queried.body).length === 1
+      && idOf(asArray(queried.body)[0]) === recordId
+      && (queried.body as AnyRecord)?.total === 1
+      && (queried.body as AnyRecord)?.$limit === 1,
+    `status=${queried.status}, body=${JSON.stringify(queried.body)}`);
+  const repeated = await request('QUERY', `/${RESOURCE}`, { token, body: queryBody });
+  suite.check(`QUERY /${RESOURCE} is idempotent — repeating it returns the same result`,
+    repeated.status === 200 && JSON.stringify(repeated.body) === JSON.stringify(queried.body),
+    `status=${repeated.status}`);
+  const badQuery = await request('QUERY', `/${RESOURCE}`, { token, body: [] });
+  suite.check(`QUERY /${RESOURCE} rejects a non-object body (400)`,
+    badQuery.status === 400, `status=${badQuery.status}, body=${JSON.stringify(badQuery.body)?.slice(0, 60)}`);
 
   // 7. Get one
   const getOne = await request('GET', `/${RESOURCE}/${recordId}`, { token });
@@ -590,6 +614,14 @@ async function runApiSuite(port: number, appDir: string): Promise<ReturnType<typ
   const gone = afterDelete.status === 404 || afterDelete.body === null || afterDelete.body === '';
   suite.check(`GET /${RESOURCE}/:id no longer returns the deleted record`,
     gone, `status=${afterDelete.status}, body=${JSON.stringify(afterDelete.body)?.slice(0, 60)}`);
+
+  // 10b. QUERY reads through the same soft-delete filter. Filtering on the record's own
+  // id keeps this immune to rows left behind by earlier runs.
+  const idKey = (created.body as AnyRecord)?._id ? '_id' : 'id';
+  const queryAfterDelete = await request('QUERY', `/${RESOURCE}`, { token, body: { [idKey]: recordId } });
+  suite.check(`QUERY /${RESOURCE} no longer returns the deleted record`,
+    queryAfterDelete.status === 200 && asArray(queryAfterDelete.body).length === 0,
+    `status=${queryAfterDelete.status}, body=${JSON.stringify(queryAfterDelete.body)?.slice(0, 60)}`);
 
   // 11. List users includes the registered user (filtered to this run's email)
   const users = await request('GET', `/users?email=${encodeURIComponent(email)}`, { token });
